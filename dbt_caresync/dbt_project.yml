@@ -1,0 +1,20 @@
+name: 'caresync'
+version: '1.0.0'
+config-version: 2
+
+profile: 'caresync'
+
+model-paths: ["models"]
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  caresync:
+    staging:
+      +materialized: view
+      +schema: staging
+    marts:
+      +materialized: table
+      +schema: prod

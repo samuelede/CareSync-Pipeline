@@ -1,0 +1,15 @@
+version: 2
+
+# Single database (CARESYNC_WH) shared with the dbt profile's target database,
+# so no cross-database database: override is needed here, only the schema.
+sources:
+  - name: raw
+    schema: RAW
+    tables:
+      - name: organizations
+      - name: providers
+      - name: payers
+      - name: patients
+      - name: encounters
+      - name: conditions
+

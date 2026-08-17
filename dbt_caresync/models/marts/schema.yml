@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: fct_appointments
+    description: "One row per patient encounter (treated as an appointment)."
+    columns:
+      - name: encounter_id
+        tests: [unique, not_null]
+      - name: patient_key
+        tests:
+          - not_null
+          - relationships: {to: ref('dim_patient'), field: patient_key}
+      - name: provider_key
+        tests:
+          - relationships: {to: ref('dim_provider'), field: provider_key}
+      - name: organization_key
+        tests:
+          - relationships: {to: ref('dim_organization'), field: organization_key}
+      - name: payer_key
+        tests:
+          - relationships: {to: ref('dim_payer'), field: payer_key}
+
+  - name: dim_patient
+    columns:
+      - name: patient_key
+        tests: [unique, not_null]
+
+  - name: dim_provider
+    columns:
+      - name: provider_key
+        tests: [unique, not_null]
+
+  - name: dim_organization
+    columns:
+      - name: organization_key
+        tests: [unique, not_null]
+
+  - name: dim_payer
+    columns:
+      - name: payer_key
+        tests: [unique, not_null]
+
+  - name: conditions_detail
+    columns:
+      - name: encounter_id
+        tests:
+          - not_null
+          - relationships: {to: ref('fct_appointments'), field: encounter_id}
+      - name: patient_key
+        tests: [not_null]
