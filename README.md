@@ -72,12 +72,14 @@ caresync-pipeline/
 ├── data/
 │   └── landing/                 # drop zone: generated batches, gitignored (Week 3: same path, fed by SFTP)
 ├── scripts/
+│   ├── setup_google_drive.sh
 │   ├── generate_synthea_data.sh
 │   ├── simulate_weekly_drop.py
 │   ├── make_dirty_batch.py
 │   ├── run_local_pipeline.sh
 │   ├── send_run_summary.py
 │   ├── audit_log.py
+│   ├── check_connections.py
 │   └── test_snowflake_connection.py
 ├── tests/
 │   ├── test_validation_rules.py
@@ -114,12 +116,21 @@ python -m scripts.check_connections
 ```
 
 If Google Drive reports `OK`, you're already configured, skip ahead. If
-it reports `SKIPPED` or `FAILED`, see
-[`docs/google_drive_setup.md`](docs/google_drive_setup.md) for full
-first-time setup covering two auth paths: a service account (best for
-automation, but Google's default org policy blocks key creation on many
-projects) or OAuth with your own Google account (no key file, one-time
-browser consent). The setup guide includes the fix and workaround for
+it reports `SKIPPED` or `FAILED`, run the CLI setup script (requires the
+[Google Cloud CLI](https://cloud.google.com/sdk/docs/install)):
+
+```bash
+gcloud auth login
+./scripts/setup_google_drive.sh caresync-pipeline
+```
+
+Or see [`docs/google_drive_setup.md`](docs/google_drive_setup.md) for the
+full first-time walkthrough covering two auth paths: a service account
+(what the script above sets up, but Google's default org policy blocks
+key creation on many projects) or OAuth with your own Google account (no
+key file, one-time browser consent, the only path with no CLI
+equivalent for the client ID itself). The setup guide includes the fix
+and workaround for
 that org policy error if you hit it.
 
 ### 3. Snowflake

@@ -11,16 +11,28 @@ There are two ways to authenticate. Pick one.
 - **Service account** (Path A): best for automation (GitHub Actions,
   Airflow), no browser interaction needed at run time. Requires
   downloading a JSON key file, which some Google Cloud projects block by
-  default (see Troubleshooting below).
+  default (see Troubleshooting below). Steps 1, 2, A3, and A4 can all be
+  done from the command line, see Path A, step A0.
 - **OAuth, your own Google account** (Path B): no key file at all, no
   organization policy to fight. Requires a one-time browser consent the
   first time you run the pipeline locally. Good default for local
-  development and for projects where key creation is blocked.
+  development and for projects where key creation is blocked. Steps 1 and
+  2 can be done from the command line (reuse Path A's script, step A0, and
+  stop before key creation); creating the OAuth client ID itself (step B3)
+  has no CLI equivalent, Google only exposes it through the Console.
 
-Both paths share steps 1 and 2.
+Both paths share steps 1 and 2 below, or the CLI script in Path A, step A0,
+which does both automatically either way.
 
 ## 1. Create a Google Cloud project
 
+**Command line:**
+```bash
+gcloud projects create caresync-pipeline --name=caresync-pipeline
+gcloud config set project caresync-pipeline
+```
+
+**Or via the Console:**
 1. Go to [console.cloud.google.com](https://console.cloud.google.com).
 2. Click the project dropdown at the top, then **New Project**.
 3. Name it something like `caresync-pipeline`, and click **Create**.
@@ -29,6 +41,12 @@ Both paths share steps 1 and 2.
 
 ## 2. Enable the Google Drive API
 
+**Command line:**
+```bash
+gcloud services enable drive.googleapis.com
+```
+
+**Or via the Console:**
 1. In the left sidebar, go to **APIs & Services > Library**.
 2. Search for "Google Drive API".
 3. Click it, then click **Enable**.
@@ -36,6 +54,32 @@ Both paths share steps 1 and 2.
 ---
 
 ## Path A: Service account
+
+### A0. CLI-automated setup (recommended over clicking through the Console)
+
+If you have the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
+installed, one script handles project creation, enabling the Drive API,
+creating the service account, and generating the key:
+
+```bash
+gcloud auth login
+./scripts/setup_google_drive.sh caresync-pipeline
+```
+
+The second argument is optional (service account name, defaults to
+`caresync-drive-reader`). The script is idempotent, safe to re-run if a
+project or service account already exists. If it hits the key-creation-
+disabled organization policy, it prints the exact fix or points you at
+Path B, see Troubleshooting below either way.
+
+This automates everything through step A4. Skip to step A5 (sharing the
+folder) once it finishes, that part and OAuth client creation (Path B)
+are the only two steps with no `gcloud` equivalent, Google only exposes
+them through the Console UI.
+
+If you'd rather click through the Console instead (or don't have `gcloud`
+installed), continue with steps A3-A4 below, they do the same thing
+manually.
 
 ### A3. Create a service account
 
@@ -113,14 +157,24 @@ Default", it isn't specific to anything you did wrong.
 
 You have two options:
 
-**Option 1: disable the policy (if you have permission).** Go to
-**IAM & Admin > Organization Policies**, search for
-`iam.disableServiceAccountKeyCreation`, open it, and add a rule to
-override the enforced constraint for this project. This requires the
-"Organization Policy Administrator" role (`roles/orgpolicy.policyAdmin`).
-On a personal account with no formal organization, you may already have
-this role implicitly, on an account tied to a Google Workspace
-organization, you may need to ask an admin.
+**Option 1: disable the policy (if you have permission), via the CLI.**
+```bash
+cat > /tmp/gdrive_policy.yaml << 'POLICY'
+name: projects/<your-project-id>/policies/iam.disableServiceAccountKeyCreation
+spec:
+  rules:
+  - enforce: false
+POLICY
+gcloud org-policies set-policy /tmp/gdrive_policy.yaml
+```
+Requires the "Organization Policy Administrator" role
+(`roles/orgpolicy.policyAdmin`). On a personal account with no formal
+organization, you may already have this role implicitly, on an account
+tied to a Google Workspace organization, you may need to ask an admin.
+`scripts/setup_google_drive.sh` prints this exact command, with your
+project ID already filled in, if it hits this error. Or do the equivalent
+by hand in the Console: **IAM & Admin > Organization Policies**, search
+for `iam.disableServiceAccountKeyCreation`, open it, add an override rule.
 
 **Option 2 (recommended): switch to Path B, OAuth.** No key file, no
 organization policy involved at all. This sidesteps the problem entirely
