@@ -9,6 +9,10 @@ venv/
 # credentials
 config/gdrive_service_account.json
 *.pem
+config/gdrive_oauth_client_secret.json
+config/snowflake_rsa_key.p8
+
+data/landing
 
 # dbt
 dbt_caresync/target/
