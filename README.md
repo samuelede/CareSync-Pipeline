@@ -133,6 +133,27 @@ equivalent for the client ID itself). The setup guide includes the fix
 and workaround for
 that org policy error if you hit it.
 
+**Google Drive is not required to run this pipeline.** If you'd rather
+skip API setup for now (or come back to it later), copy weekly CSV files
+straight into `data/landing/<run_id>/` yourself, no Drive account, no
+credentials, no code changes. Set `GDRIVE_FORCE_LOCAL=true` in `.env` to
+force this mode even if Drive credentials exist on disk, so you can leave
+partially finished OAuth/service account setup in place without it
+interfering:
+
+```bash
+mkdir -p data/landing/2026-08-10
+# copy organizations.csv, providers.csv, payers.csv, patients.csv,
+# encounters.csv, conditions.csv into that folder, or generate synthetic
+# ones instead:
+python -m scripts.simulate_weekly_drop --run-id 2026-08-10
+```
+
+`sensing/drive_sensor.py` reads from this same folder either way, live
+Drive downloads land here too, so nothing downstream (`pre_validate.py`,
+the loader, dbt) knows or cares whether a file arrived via Drive or was
+copied in by hand.
+
 ### 3. Snowflake
 
 ```bash

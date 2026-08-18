@@ -17,24 +17,43 @@ load_dotenv()
 # via a one-time browser consent) works around that with no key file at
 # all. See docs/google_drive_setup.md for the full setup and this
 # troubleshooting case.
+#
+# GDRIVE_FORCE_LOCAL=true overrides both and forces local-simulation mode
+# even if service account or OAuth credential files exist on disk. Useful
+# while Drive auth is still being debugged, drop CSVs into
+# data/landing/<run_id>/ by hand (or via scripts.simulate_weekly_drop) and
+# run the pipeline without Drive at all, then flip this back to false once
+# Drive access is sorted.
 GDRIVE_FOLDER_ID = os.getenv("GDRIVE_FOLDER_ID")
 GDRIVE_SERVICE_ACCOUNT_JSON = os.getenv("GDRIVE_SERVICE_ACCOUNT_JSON", "./config/gdrive_service_account.json")
 GDRIVE_OAUTH_CLIENT_SECRET_JSON = os.getenv("GDRIVE_OAUTH_CLIENT_SECRET_JSON", "./config/gdrive_oauth_client_secret.json")
 GDRIVE_OAUTH_TOKEN_JSON = os.getenv("GDRIVE_OAUTH_TOKEN_JSON", "./config/gdrive_oauth_token.json")
+GDRIVE_FORCE_LOCAL = os.getenv("GDRIVE_FORCE_LOCAL", "false").lower() in ("true", "1", "yes")
 
 # --- Snowflake ---
 # One database, one schema per pipeline layer (RAW / STAGING / PROD /
 # AUDIT). Access control between layers is enforced with Snowflake roles
 # and schema grants, not separate databases; dbt's Snowflake convention is
 # one target database with multiple schemas.
+#
+# SNOWFLAKE_AUTHENTICATOR defaults to password login ("snowflake"). Set to
+# "externalbrowser" if your account enforces MFA with a method SnowSQL/the
+# Python connector can't prompt for directly (e.g. a passkey/security
+# key), this delegates the whole login, including MFA, to your browser.
+# Requires a local browser and one click per session, not suitable for
+# unattended CI, use key-pair auth there instead (see docs/snowflake_setup.md).
+SNOWFLAKE_AUTHENTICATOR = os.getenv("SNOWFLAKE_AUTHENTICATOR", "snowflake")
 SNOWFLAKE_CONFIG = {
     "account": os.getenv("SNOWFLAKE_ACCOUNT"),
     "user": os.getenv("SNOWFLAKE_USER"),
-    "password": os.getenv("SNOWFLAKE_PASSWORD"),
     "role": os.getenv("SNOWFLAKE_ROLE", "CARESYNC_LOADER"),
     "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE", "CARESYNC_WH"),
     "database": os.getenv("SNOWFLAKE_DATABASE", "CARESYNC_WH"),
 }
+if SNOWFLAKE_AUTHENTICATOR == "snowflake":
+    SNOWFLAKE_CONFIG["password"] = os.getenv("SNOWFLAKE_PASSWORD")
+else:
+    SNOWFLAKE_CONFIG["authenticator"] = SNOWFLAKE_AUTHENTICATOR
 DATABASE = SNOWFLAKE_CONFIG["database"]
 SCHEMA_RAW = "RAW"
 SCHEMA_STAGING = "STAGING"

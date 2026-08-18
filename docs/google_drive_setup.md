@@ -2,9 +2,13 @@
 
 This walks through everything needed to get `GDRIVE_FOLDER_ID` and working
 credentials so `sensing/drive_sensor.py` can reach a real Google Drive
-folder in live mode. Skip this if you're only running the pipeline in
-local-simulation mode (no `.env` values set for Drive), it falls back
-automatically and none of this is required.
+folder in live mode. **None of this is required to run the pipeline.**
+Skip it entirely, or come back to it later, by dropping CSVs into
+`data/landing/<run_id>/` yourself, either downloaded by hand or generated
+with `python -m scripts.simulate_weekly_drop --run-id <run_id>`. If
+Drive credentials happen to exist on disk from a partial setup attempt,
+set `GDRIVE_FORCE_LOCAL=true` in `.env` to force local mode regardless,
+so debugging Drive access later doesn't require deleting anything first.
 
 There are two ways to authenticate. Pick one.
 
@@ -134,9 +138,14 @@ the `client_email` field.
 
 ### A6. Get the folder ID and fill in `.env`
 
-1. Open the folder in Google Drive in your browser.
-2. Look at the URL: `https://drive.google.com/drive/folders/<FOLDER_ID>`.
-3. Copy the `<FOLDER_ID>` portion.
+1. Go to [drive.google.com](https://drive.google.com) and double-click
+   the folder you shared in step A5, so you're inside it, not just
+   looking at it in a list.
+2. Look at the browser's address bar. It'll look like:
+   ```
+   https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz0123456
+   ```
+3. Everything after `/folders/` is the folder ID, copy just that part.
 
 ```bash
 GDRIVE_FOLDER_ID=<the folder id>
@@ -182,21 +191,63 @@ and is the simpler path for local development anyway. Continue below.
 
 ---
 
+## Troubleshooting: "Access blocked: can only be used within its organization" (Error 403: org_internal)
+
+This happens if the OAuth consent screen's **User type** was set to
+**Internal** instead of **External** in step B3. Internal restricts sign-in
+to accounts on a specific Workspace organization's domain, which a
+personal Gmail account is never part of, so you get blocked trying to
+sign in as yourself.
+
+**Fix:**
+
+1. In [console.cloud.google.com](https://console.cloud.google.com), go to
+   **APIs & Services > OAuth consent screen**.
+2. If **User type** can still be edited, change it to **External**, then
+   add your Google account under **Test users**.
+3. If it's locked (Google doesn't always allow changing this after the
+   fact), the simplest fix is a fresh project:
+   ```bash
+   gcloud projects create caresync-pipeline-2
+   gcloud config set project caresync-pipeline-2
+   gcloud services enable drive.googleapis.com
+   ```
+   Then repeat step B3 from the start on the new project, choosing
+   **External** this time.
+4. Recreate the OAuth client ID, download the new JSON, and overwrite
+   `config/gdrive_oauth_client_secret.json`.
+5. Delete the stale cached token so the next run re-triggers consent
+   against the new client:
+   ```bash
+   rm config/gdrive_oauth_token.json
+   ```
+6. Re-run `python -m sensing.drive_sensor --run-id oauth-retest` and
+   complete the browser consent again.
+
+---
+
 ## Path B: OAuth (your own Google account, no service account key)
 
 ### B3. Create an OAuth client ID
 
 1. Go to **APIs & Services > Credentials**.
-2. If prompted, configure the **OAuth consent screen** first: choose
-   **External** (unless you have a Workspace organization), fill in an
-   app name and your email for the required fields, and add your own
-   Google account under **Test users** (the app stays in "Testing" mode,
-   which is fine, it never needs Google's review for personal use).
-3. Back on **Credentials**, click **Create Credentials > OAuth client ID**.
-4. Application type: **Desktop app**.
-5. Give it a name, e.g. `caresync-drive-oauth`, click **Create**.
-6. Click **Download JSON** on the client ID you just created.
-7. Move the downloaded file into the repo at:
+2. If prompted, configure the **OAuth consent screen** first: for
+   **User type**, choose **External**. If you have a personal Gmail
+   account (not tied to a Google Workspace organization), this is almost
+   always the right choice, even if **Internal** is offered as an option.
+   Choosing **Internal** by mistake causes an
+   `Error 403: org_internal` / "can only be used within its organization"
+   screen when you try to sign in later, see Troubleshooting below if you
+   hit that.
+3. Fill in an app name and your email for the required fields, then add
+   your own Google account under **Test users** (the app stays in
+   "Testing" mode, which is fine, it never needs Google's review for
+   personal use).
+4. Back on **Credentials**, click **Create Credentials > OAuth client ID**.
+5. Application type: **Desktop app**.
+6. Give it a name, e.g. `caresync-drive-oauth`, click **Create**.
+7. Click **Download JSON** on the client ID you just created.
+8. Move the downloaded file into the repo at:
    ```
    config/gdrive_oauth_client_secret.json
    ```
@@ -211,11 +262,21 @@ consent and resulting token come from you, in step B5.
 
 Since Drive is accessed as your own account under this path, you don't
 need to share the folder with anyone, you already own or have access to
-it.
+it. If you don't have a delivery folder yet, create one first.
 
-1. Open the folder in Google Drive in your browser.
-2. Look at the URL: `https://drive.google.com/drive/folders/<FOLDER_ID>`.
-3. Copy the `<FOLDER_ID>` portion.
+1. Go to [drive.google.com](https://drive.google.com), signed in with the
+   **same Google account** you used for the OAuth consent screen in B3
+   (this matters, OAuth only grants access to the account that approved
+   it).
+2. No existing folder to use? Click **+ New > New folder**, name it
+   something like `caresync-weekly-drop`, click **Create**.
+3. Double-click the folder to open it, so you're inside it, not just
+   looking at it in a list.
+4. Look at the browser's address bar. It'll look like:
+   ```
+   https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz0123456
+   ```
+5. Everything after `/folders/` is the folder ID, copy just that part.
 
 ```bash
 GDRIVE_FOLDER_ID=<the folder id>

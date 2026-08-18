@@ -38,7 +38,7 @@ import yaml
 from config.settings import (
     GDRIVE_FOLDER_ID, GDRIVE_SERVICE_ACCOUNT_JSON,
     GDRIVE_OAUTH_CLIENT_SECRET_JSON, GDRIVE_OAUTH_TOKEN_JSON,
-    FILE_ARRIVAL_SLA_MINUTES,
+    GDRIVE_FORCE_LOCAL, FILE_ARRIVAL_SLA_MINUTES,
 )
 from notifications.slack_notify import send_slack_alert
 from notifications.email_notify import send_email_alert
@@ -55,8 +55,13 @@ def load_file_manifest() -> list:
 
 def _auth_mode() -> str:
     """Returns 'service_account', 'oauth', or 'local' based on what's
-    configured in .env. Checked in this order because a service account is
-    the more automation-friendly path when it's available."""
+    configured in .env. GDRIVE_FORCE_LOCAL=true always wins, useful to run
+    the pipeline against manually downloaded/simulated files while Drive
+    auth is still being debugged, without moving credential files around.
+    Otherwise checked in this order because a service account is the more
+    automation-friendly path when it's available."""
+    if GDRIVE_FORCE_LOCAL:
+        return "local"
     if not GDRIVE_FOLDER_ID:
         return "local"
     if os.path.exists(GDRIVE_SERVICE_ACCOUNT_JSON):

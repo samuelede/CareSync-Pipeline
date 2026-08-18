@@ -31,6 +31,7 @@ import sys
 from config.settings import (
     GDRIVE_FOLDER_ID, GDRIVE_SERVICE_ACCOUNT_JSON,
     GDRIVE_OAUTH_CLIENT_SECRET_JSON, GDRIVE_OAUTH_TOKEN_JSON,
+    GDRIVE_FORCE_LOCAL,
     SNOWFLAKE_CONFIG,
     SLACK_BOT_TOKEN, SLACK_CHANNEL_ID,
     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD,
@@ -82,6 +83,8 @@ def _check_drive_oauth() -> tuple:
 
 
 def check_google_drive() -> tuple:
+    if GDRIVE_FORCE_LOCAL:
+        return SKIPPED, "GDRIVE_FORCE_LOCAL=true; sensing will use local-simulation mode regardless of other Drive settings"
     if not GDRIVE_FOLDER_ID:
         return SKIPPED, "GDRIVE_FOLDER_ID not set in .env; sensing will use local-simulation mode"
 
