@@ -1,0 +1,7 @@
+# Phase 2 - production stack, unpinned on purpose (mirrors the Mandera/WFI convention).
+# Do NOT pin SQLAlchemy or pandas here - pinning has broken the Airflow image build before.
+apache-airflow-providers-snowflake
+apache-airflow-providers-google
+apache-airflow-providers-slack
+apache-airflow-providers-smtp
+great-expectations

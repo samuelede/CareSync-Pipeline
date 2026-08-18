@@ -1,0 +1,16 @@
+# Expected weekly delivery. File sensing checks Google Drive for each of these
+# by naming pattern; anything not present within FILE_ARRIVAL_SLA_MINUTES of
+# SCHEDULED_DELIVERY_TIME_UTC triggers an SLA-miss alert.
+files:
+  - dataset: organizations
+    pattern: "organizations_*.csv"
+  - dataset: providers
+    pattern: "providers_*.csv"
+  - dataset: payers
+    pattern: "payers_*.csv"
+  - dataset: patients
+    pattern: "patients_*.csv"
+  - dataset: encounters
+    pattern: "encounters_*.csv"
+  - dataset: conditions
+    pattern: "conditions_*.csv"

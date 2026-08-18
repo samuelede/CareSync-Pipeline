@@ -1,0 +1,2 @@
+# Phase 2 addition - Great Expectations (installed alongside requirements.txt)
+great-expectations==0.18.12

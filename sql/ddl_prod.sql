@@ -1,0 +1,16 @@
+-- CARESYNC_WH.PROD: dbt mart models materialize here, the single-fact star
+-- schema. dbt owns table creation; this file documents the target shape.
+--
+--   fct_appointments        one row per encounter
+--     - patient_key (FK -> dim_patient)
+--     - provider_key (FK -> dim_provider)
+--     - organization_key (FK -> dim_organization)
+--     - payer_key (FK -> dim_payer)
+--     - encounter_date, encounter_type, cost, coverage_amount
+--   dim_patient              patient attributes, PHI stripped
+--   dim_provider              provider attributes
+--   dim_organization          clinic/org attributes
+--   dim_payer                 payer attributes
+--   conditions_detail         one row per condition, FK -> fct_appointments
+--
+CREATE SCHEMA IF NOT EXISTS CARESYNC_WH.PROD;

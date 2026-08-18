@@ -1,0 +1,60 @@
+name: CareSync Weekly Pipeline (Phase 1 - testing stack)
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"   # 07:00 UTC Monday, 1h after the 06:00 scheduled delivery
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Run ID (defaults to today's date)"
+        required: false
+
+jobs:
+  caresync-pipeline:
+    runs-on: ubuntu-latest
+    env:
+      RUN_ID: ${{ github.event.inputs.run_id || github.run_id }}
+      GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Step order mirrors the pipeline stages in the project spec.
+      # All steps run as `python -m` from the repo root so the package
+      # imports (config.settings, notifications.*, scripts.audit_log)
+      # resolve the same way locally and in CI.
+      - name: Sense files (Google Drive, 1h SLA)
+        run: python -m sensing.drive_sensor --run-id "$RUN_ID"
+
+      - name: Pre-validate (pandas)
+        run: python -m validation.pandas.pre_validate --run-id "$RUN_ID"
+
+      - name: Load validated files to Snowflake RAW
+        run: python -m loaders.snowflake_loader --run-id "$RUN_ID"
+
+      - name: dbt run (staging + marts)
+        working-directory: dbt_caresync
+        run: |
+          pip install dbt-snowflake
+          dbt run
+
+      - name: Post-validate reporting layer
+        run: python -m validation.pandas.post_validate --run-id "$RUN_ID"
+
+      - name: Send run summary notification
+        if: always()
+        run: python -m scripts.send_run_summary --run-id "$RUN_ID"

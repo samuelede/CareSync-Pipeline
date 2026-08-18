@@ -1,0 +1,25 @@
+# Phase 2 placeholder. Initialize for real with:
+#   great_expectations init
+# run from validation/great_expectations/ - this creates the full
+# uncommitted/ tree, datasource config, and Data Docs site config.
+#
+# Datasource: point at the same data/synthea_raw/<run_id>/ CSVs used in
+# Phase 1, then later at the SFTP-delivered files per the spec's dev-to-prod note.
+#
+# Suites to author (one per dataset, mirroring validation/pandas/rules_*.py
+# 1:1 so the business logic doesn't change, only the mechanism):
+#   expectations/organizations_suite.json
+#   expectations/providers_suite.json
+#   expectations/payers_suite.json
+#   expectations/patients_suite.json
+#   expectations/encounters_suite.json
+#   expectations/conditions_suite.json
+#
+# Each suite should express the same seven rule categories as the pandas
+# version: expect_table_columns_to_match_ordered_list,
+# expect_column_values_to_not_be_null, expect_column_values_to_match_regex
+# (id format), expect_column_values_to_be_in_set (allowed values),
+# expect_column_pair_values_A_to_be_greater_than_B (chronology),
+# expect_compound_columns_to_be_unique (duplicates),
+# expect_table_row_count_to_be_between (row-count sanity).
+config_version: 3.0
