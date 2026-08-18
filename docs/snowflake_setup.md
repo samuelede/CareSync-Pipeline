@@ -44,6 +44,26 @@ You'll be prompted for your password on first connect. If it connects
 successfully, you'll land on a `>` prompt inside SnowSQL, type `!exit` to
 leave.
 
+**If this fails with an MFA error** like "MFA authentication is required,
+but none of your current MFA methods are supported for programmatic
+authentication", your enrolled MFA method (often a passkey/security key)
+isn't one SnowSQL can prompt for directly. Use browser-based login
+instead, which delegates the whole login, MFA included, to your browser:
+
+```bash
+snowsql -a <account_identifier> -u <username> --authenticator externalbrowser
+```
+
+Set `SNOWFLAKE_AUTHENTICATOR=externalbrowser` in `.env` too, so the Python
+side (`scripts.check_connections`, the loader, post-validation) hits the
+same browser flow instead of the same MFA wall. `SNOWFLAKE_PASSWORD` is
+ignored once this is set. Note this needs a local browser and one click
+per session, it won't work unattended in GitHub Actions or Airflow. For
+CI, use key-pair authentication instead, see
+[Snowflake's key-pair auth docs](https://docs.snowflake.com/en/user-guide/key-pair-auth),
+which bypasses password/MFA entirely and is the standard approach for
+service-to-service connections anyway.
+
 Optionally, save the connection so you don't have to retype the account
 and user every time. Edit (or create) `~/.snowsql/config` and add:
 
@@ -108,11 +128,16 @@ SNOWFLAKE_PASSWORD=<password>
 SNOWFLAKE_ROLE=CARESYNC_LOADER
 SNOWFLAKE_WAREHOUSE=CARESYNC_WH
 SNOWFLAKE_DATABASE=CARESYNC_WH
+SNOWFLAKE_AUTHENTICATOR=snowflake
 ```
 
 `SNOWFLAKE_WAREHOUSE` and `SNOWFLAKE_DATABASE` intentionally share the
 name `CARESYNC_WH`, they're different Snowflake object types (compute vs.
 storage) and are allowed to share a name. Not a typo.
+
+If step 4 needed `--authenticator externalbrowser` because of an MFA
+error, set `SNOWFLAKE_AUTHENTICATOR=externalbrowser` here too and leave
+`SNOWFLAKE_PASSWORD` blank, it's ignored either way once this is set.
 
 ## 8. Verify the connection
 
