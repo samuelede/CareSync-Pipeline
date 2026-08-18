@@ -47,22 +47,13 @@ leave.
 **If this fails with an MFA error** like "MFA authentication is required,
 but none of your current MFA methods are supported for programmatic
 authentication", your enrolled MFA method (often a passkey/security key)
-isn't one SnowSQL can prompt for directly. Use browser-based login
-instead, which delegates the whole login, MFA included, to your browser:
-
-```bash
-snowsql -a <account_identifier> -u <username> --authenticator externalbrowser
-```
-
-Set `SNOWFLAKE_AUTHENTICATOR=externalbrowser` in `.env` too, so the Python
-side (`scripts.check_connections`, the loader, post-validation) hits the
-same browser flow instead of the same MFA wall. `SNOWFLAKE_PASSWORD` is
-ignored once this is set. Note this needs a local browser and one click
-per session, it won't work unattended in GitHub Actions or Airflow. For
-CI, use key-pair authentication instead, see
-[Snowflake's key-pair auth docs](https://docs.snowflake.com/en/user-guide/key-pair-auth),
-which bypasses password/MFA entirely and is the standard approach for
-service-to-service connections anyway.
+isn't one SnowSQL can prompt for directly. Skip to "MFA workaround:
+key-pair authentication" below, that's the reliable fix on a plain trial
+account. (`--authenticator externalbrowser` is the other commonly
+suggested workaround, but it only works if your account has SAML/SSO
+federation configured with an identity provider like Okta, it fails with
+a SAML-related error on a plain trial account that doesn't have that set
+up, which is the normal case here.)
 
 Optionally, save the connection so you don't have to retype the account
 and user every time. Edit (or create) `~/.snowsql/config` and add:
@@ -78,6 +69,71 @@ Then connect any time with:
 ```bash
 snowsql -c caresync
 ```
+
+## MFA workaround: key-pair authentication
+
+RSA key-pair authentication bypasses password and MFA entirely, on any
+account type. It's also the standard approach for programmatic or CI
+access generally, so this isn't really a workaround, it's the setup
+you'd want eventually anyway.
+
+**Generate a key pair** (run once, locally):
+
+```bash
+openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out config/snowflake_rsa_key.p8 -nocrypt
+openssl rsa -in config/snowflake_rsa_key.p8 -pubout -out config/snowflake_rsa_key_public.pem
+```
+
+This produces two files: `snowflake_rsa_key.p8` (private, never share or
+commit it, already covered in `.gitignore`) and
+`snowflake_rsa_key_public.pem` (public, safe to share, this is what
+Snowflake stores).
+
+**Register the public key on your Snowflake user.** This one step needs
+to happen through a session that can already authenticate, use Snowsight
+(the web UI) rather than the CLI, since browser-based login with your
+existing MFA method works fine there, it's specifically CLI/programmatic
+login that's blocked. Log in to Snowsight normally, open a worksheet, and
+run:
+
+```bash
+cat config/snowflake_rsa_key_public.pem
+```
+
+Copy everything between `-----BEGIN PUBLIC KEY-----` and
+`-----END PUBLIC KEY-----`, excluding those header/footer lines
+themselves, then in the Snowsight worksheet:
+
+```sql
+ALTER USER <username> SET RSA_PUBLIC_KEY='<paste the key body here>';
+```
+
+**Verify it worked**, from the same worksheet:
+
+```sql
+DESC USER <username>;
+```
+
+Look for a `RSA_PUBLIC_KEY_FP` row with a non-empty fingerprint value.
+
+**Connect with the key pair:**
+
+```bash
+snowsql -a <account_identifier> -u <username> --private-key-path config/snowflake_rsa_key.p8
+```
+
+If that connects without any password or MFA prompt, it worked. Set in
+`.env`:
+
+```bash
+SNOWFLAKE_AUTH_METHOD=keypair
+SNOWFLAKE_PRIVATE_KEY_PATH=./config/snowflake_rsa_key.p8
+```
+
+This makes `scripts.check_connections`, the loader, post-validation, and
+(via the `dev_keypair` target in `dbt_caresync/profiles_example.yml`) dbt
+itself all use the same key pair, no password or MFA prompt anywhere in
+the pipeline.
 
 ## 5. Create the warehouse, database, and schemas
 
@@ -128,16 +184,20 @@ SNOWFLAKE_PASSWORD=<password>
 SNOWFLAKE_ROLE=CARESYNC_LOADER
 SNOWFLAKE_WAREHOUSE=CARESYNC_WH
 SNOWFLAKE_DATABASE=CARESYNC_WH
-SNOWFLAKE_AUTHENTICATOR=snowflake
+SNOWFLAKE_AUTH_METHOD=password
 ```
 
 `SNOWFLAKE_WAREHOUSE` and `SNOWFLAKE_DATABASE` intentionally share the
 name `CARESYNC_WH`, they're different Snowflake object types (compute vs.
 storage) and are allowed to share a name. Not a typo.
 
-If step 4 needed `--authenticator externalbrowser` because of an MFA
-error, set `SNOWFLAKE_AUTHENTICATOR=externalbrowser` here too and leave
-`SNOWFLAKE_PASSWORD` blank, it's ignored either way once this is set.
+If step 4 needed the key-pair workaround because of an MFA error, set
+these instead and leave `SNOWFLAKE_PASSWORD` blank:
+
+```bash
+SNOWFLAKE_AUTH_METHOD=keypair
+SNOWFLAKE_PRIVATE_KEY_PATH=./config/snowflake_rsa_key.p8
+```
 
 ## 8. Verify the connection
 

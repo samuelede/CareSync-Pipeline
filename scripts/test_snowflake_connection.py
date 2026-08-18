@@ -11,7 +11,7 @@ succeeds, the warehouse is reachable and credentials are valid.
 """
 import sys
 
-from config.settings import SNOWFLAKE_CONFIG
+from config.settings import SNOWFLAKE_CONFIG, get_snowflake_connect_kwargs
 
 
 def main():
@@ -23,7 +23,7 @@ def main():
     import snowflake.connector
 
     try:
-        conn = snowflake.connector.connect(**SNOWFLAKE_CONFIG)
+        conn = snowflake.connector.connect(**get_snowflake_connect_kwargs())
         cur = conn.cursor()
         cur.execute("SELECT CURRENT_VERSION(), CURRENT_ACCOUNT(), CURRENT_USER(), CURRENT_REGION()")
         version, account, user, region = cur.fetchone()

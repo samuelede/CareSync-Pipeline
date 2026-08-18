@@ -36,13 +36,24 @@ GDRIVE_FORCE_LOCAL = os.getenv("GDRIVE_FORCE_LOCAL", "false").lower() in ("true"
 # and schema grants, not separate databases; dbt's Snowflake convention is
 # one target database with multiple schemas.
 #
-# SNOWFLAKE_AUTHENTICATOR defaults to password login ("snowflake"). Set to
-# "externalbrowser" if your account enforces MFA with a method SnowSQL/the
-# Python connector can't prompt for directly (e.g. a passkey/security
-# key), this delegates the whole login, including MFA, to your browser.
-# Requires a local browser and one click per session, not suitable for
-# unattended CI, use key-pair auth there instead (see docs/snowflake_setup.md).
-SNOWFLAKE_AUTHENTICATOR = os.getenv("SNOWFLAKE_AUTHENTICATOR", "snowflake")
+# SNOWFLAKE_AUTH_METHOD selects how the pipeline authenticates:
+#   password       (default) plain password login, works unless your
+#                  account enforces MFA with a method the CLI/connector
+#                  can't prompt for directly (e.g. a passkey).
+#   externalbrowser  delegates login, including MFA, to a browser window.
+#                  Requires your Snowflake account to have SAML/SSO
+#                  federation configured (an identity provider like Okta);
+#                  fails with a SAML-related error on plain trial accounts
+#                  that don't have that set up.
+#   keypair        RSA key-pair authentication. Bypasses password and MFA
+#                  entirely, works on any account including plain trial
+#                  accounts, and is the standard approach for programmatic
+#                  or CI access anyway. See docs/snowflake_setup.md for
+#                  generating a key pair and registering the public key.
+SNOWFLAKE_AUTH_METHOD = os.getenv("SNOWFLAKE_AUTH_METHOD", "password")
+SNOWFLAKE_PRIVATE_KEY_PATH = os.getenv("SNOWFLAKE_PRIVATE_KEY_PATH", "./config/snowflake_rsa_key.p8")
+SNOWFLAKE_PRIVATE_KEY_PASSPHRASE = os.getenv("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE")
+
 SNOWFLAKE_CONFIG = {
     "account": os.getenv("SNOWFLAKE_ACCOUNT"),
     "user": os.getenv("SNOWFLAKE_USER"),
@@ -50,15 +61,45 @@ SNOWFLAKE_CONFIG = {
     "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE", "CARESYNC_WH"),
     "database": os.getenv("SNOWFLAKE_DATABASE", "CARESYNC_WH"),
 }
-if SNOWFLAKE_AUTHENTICATOR == "snowflake":
+if SNOWFLAKE_AUTH_METHOD == "password":
     SNOWFLAKE_CONFIG["password"] = os.getenv("SNOWFLAKE_PASSWORD")
-else:
-    SNOWFLAKE_CONFIG["authenticator"] = SNOWFLAKE_AUTHENTICATOR
+elif SNOWFLAKE_AUTH_METHOD == "externalbrowser":
+    SNOWFLAKE_CONFIG["authenticator"] = "externalbrowser"
+elif SNOWFLAKE_AUTH_METHOD == "keypair":
+    pass  # private_key bytes are loaded lazily, see get_snowflake_connect_kwargs() below
 DATABASE = SNOWFLAKE_CONFIG["database"]
 SCHEMA_RAW = "RAW"
 SCHEMA_STAGING = "STAGING"
 SCHEMA_PROD = "PROD"
 SCHEMA_AUDIT = "AUDIT"
+
+
+def get_snowflake_connect_kwargs() -> dict:
+    """Returns kwargs ready for snowflake.connector.connect(**kwargs).
+
+    Identical to SNOWFLAKE_CONFIG for password/externalbrowser auth. For
+    keypair auth, loads and serializes the private key file at call time
+    (not at import time) so a missing/misconfigured key file only breaks
+    the actual connection attempt, not every import of this module.
+    """
+    if SNOWFLAKE_AUTH_METHOD != "keypair":
+        return dict(SNOWFLAKE_CONFIG)
+
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives import serialization
+
+    with open(SNOWFLAKE_PRIVATE_KEY_PATH, "rb") as key_file:
+        private_key = serialization.load_pem_private_key(
+            key_file.read(),
+            password=SNOWFLAKE_PRIVATE_KEY_PASSPHRASE.encode() if SNOWFLAKE_PRIVATE_KEY_PASSPHRASE else None,
+            backend=default_backend(),
+        )
+    private_key_bytes = private_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    return {**SNOWFLAKE_CONFIG, "private_key": private_key_bytes}
 
 # --- Slack / Email ---
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")

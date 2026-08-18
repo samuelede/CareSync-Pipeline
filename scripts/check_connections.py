@@ -32,7 +32,7 @@ from config.settings import (
     GDRIVE_FOLDER_ID, GDRIVE_SERVICE_ACCOUNT_JSON,
     GDRIVE_OAUTH_CLIENT_SECRET_JSON, GDRIVE_OAUTH_TOKEN_JSON,
     GDRIVE_FORCE_LOCAL,
-    SNOWFLAKE_CONFIG,
+    SNOWFLAKE_CONFIG, get_snowflake_connect_kwargs,
     SLACK_BOT_TOKEN, SLACK_CHANNEL_ID,
     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD,
 )
@@ -113,7 +113,7 @@ def check_snowflake() -> tuple:
     try:
         import snowflake.connector
 
-        conn = snowflake.connector.connect(**SNOWFLAKE_CONFIG, login_timeout=15)
+        conn = snowflake.connector.connect(**get_snowflake_connect_kwargs(), login_timeout=15)
         cur = conn.cursor()
         cur.execute("SELECT CURRENT_VERSION(), CURRENT_ACCOUNT(), CURRENT_USER()")
         version, account, user = cur.fetchone()

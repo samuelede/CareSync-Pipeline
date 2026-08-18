@@ -2,6 +2,7 @@
 pandas==2.1.4
 SQLAlchemy==1.4.52
 snowflake-connector-python==3.13.2
+cryptography>=41.0.0
 snowflake-sqlalchemy==1.5.1
 google-api-python-client==2.126.0
 google-auth==2.29.0

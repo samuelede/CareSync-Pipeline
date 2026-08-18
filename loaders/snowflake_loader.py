@@ -24,7 +24,7 @@ import json
 
 import pandas as pd
 
-from config.settings import SNOWFLAKE_CONFIG, DATABASE
+from config.settings import SNOWFLAKE_CONFIG, DATABASE, get_snowflake_connect_kwargs
 from scripts.audit_log import write_audit_row
 
 TABLE_MAP = {
@@ -49,7 +49,7 @@ def load_dataset(dataset: str, run_id: str) -> int:
         return len(df)
 
     import snowflake.connector
-    conn = snowflake.connector.connect(**SNOWFLAKE_CONFIG)
+    conn = snowflake.connector.connect(**get_snowflake_connect_kwargs())
     try:
         cur = conn.cursor()
         cur.execute(f"PUT file://{csv_path} @%{table} OVERWRITE = TRUE")

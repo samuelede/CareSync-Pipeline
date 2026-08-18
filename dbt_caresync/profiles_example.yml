@@ -5,6 +5,13 @@
 # One database (CARESYNC_WH), one schema per layer. dbt_project.yml sets the
 # per-model schema (staging -> STAGING, marts -> PROD) via config blocks,
 # so this profile only needs a single default database and schema.
+#
+# Two auth targets below. Use "dev" for password login (default), or
+# "dev_keypair" if your account's MFA setup blocks password/CLI login (see
+# docs/snowflake_setup.md), key-pair auth is also the standard choice for
+# a CI/scheduled dbt run since it needs no browser or MFA prompt at all.
+# Switch which one is active with `dbt run --target dev_keypair`, or by
+# changing the top-level `target:` value.
 caresync:
   target: dev
   outputs:
@@ -13,6 +20,17 @@ caresync:
       account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
       user: "{{ env_var('SNOWFLAKE_USER') }}"
       password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
+      schema: STAGING
+      threads: 4
+    dev_keypair:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
+      private_key_passphrase: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE', '') }}"
       role: "{{ env_var('SNOWFLAKE_ROLE') }}"
       warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
       database: "{{ env_var('SNOWFLAKE_DATABASE') }}"

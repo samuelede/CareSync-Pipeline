@@ -26,7 +26,7 @@ import os
 
 import pandas as pd
 
-from config.settings import SNOWFLAKE_CONFIG
+from config.settings import SNOWFLAKE_CONFIG, get_snowflake_connect_kwargs
 from notifications.slack_notify import send_slack_alert
 from notifications.email_notify import send_email_alert
 from scripts.audit_log import write_audit_row
@@ -85,7 +85,7 @@ def _dry_run_checks(run_id: str) -> dict:
 def _live_checks() -> dict:
     """Runs the same four checks as real SQL against CARESYNC_WH.PROD."""
     import snowflake.connector
-    conn = snowflake.connector.connect(**SNOWFLAKE_CONFIG)
+    conn = snowflake.connector.connect(**get_snowflake_connect_kwargs())
     results = {}
     try:
         cur = conn.cursor()
