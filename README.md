@@ -45,57 +45,22 @@ tooling swap, not a redesign.
 
 ```
 caresync-pipeline/
-├── config/
-│   ├── settings.py              # single source of truth for connections + dataset dependency manifest
-│   └── file_manifest.yml        # expected weekly files
-├── sensing/
-│   └── drive_sensor.py          # Google Drive polling + 1h SLA check
-├── validation/
-│   ├── pandas/                  # Phase 1: one rules_<dataset>.py per file, pre_validate.py, post_validate.py
-│   └── great_expectations/      # Phase 2: suites + checkpoints, same rules re-expressed
-├── loaders/
-│   └── snowflake_loader.py      # PUT + COPY INTO RAW, skips REJECTED/SKIPPED datasets
-├── dbt_caresync/
-│   ├── models/staging/          # PHI-minimization boundary
-│   └── models/marts/            # fct_appointments + dimensions + conditions_detail
-├── notifications/
-│   ├── slack_notify.py
-│   └── email_notify.py
-├── orchestration/
-│   ├── github_actions/          # reference copy; live workflow is in .github/workflows/
-│   └── airflow/dags/            # Phase 2 production DAG
-├── sql/
-│   ├── ddl_raw.sql / ddl_staging.sql / ddl_prod.sql
-│   ├── run_audit_table.sql
-│   └── business_questions.sql
-├── quarantine/                  # rejected files land here, keyed by run_id
-├── data/
-│   └── landing/                 # drop zone: generated batches, gitignored (Week 3: same path, fed by SFTP)
-├── scripts/
-│   ├── setup_google_drive.sh
-│   ├── generate_synthea_data.sh
-│   ├── simulate_weekly_drop.py
-│   ├── make_dirty_batch.py
-│   ├── run_local_pipeline.sh
-│   ├── send_run_summary.py
-│   ├── audit_log.py
-│   ├── check_connections.py
-│   └── test_snowflake_connection.py
-├── tests/
-│   ├── test_validation_rules.py
-│   └── test_check_engine.py
-├── docs/
-│   ├── architecture.md
-│   ├── data_dictionary.md
-│   ├── notification_matrix.md
-│   ├── runbook.md
-│   ├── google_drive_setup.md
-│   └── snowflake_setup.md
-├── .github/workflows/caresync_weekly.yml   # Phase 1 CI orchestration (live path)
-├── requirements.txt / requirements-ge.txt / requirements-airflow.txt
-├── .env.example
-└── .gitignore
+├── config/          # connection settings, dataset dependency manifest
+├── sensing/         # Google Drive polling + 1h SLA check
+├── validation/      # pandas (Phase 1) and Great Expectations (Phase 2) validation engines
+├── loaders/         # Snowflake loading, skip-not-fail semantics
+├── dbt_caresync/    # staging models (PHI dropped) + star schema marts
+├── notifications/   # Slack + email, full event matrix
+├── orchestration/   # Airflow DAG (Phase 2); GitHub Actions workflow lives in .github/workflows/
+├── sql/             # warehouse DDL, run audit table, business questions
+├── quarantine/       # rejected files, keyed by run id
+├── data/landing/    # the drop zone (local now, SFTP in Week 3, same interface)
+├── scripts/         # setup automation, data simulation, dirty-batch demo, connection checks
+├── tests/           # unit tests
+└── docs/            # architecture, setup guides, ER diagram, full structure reference
 ```
+
+Full file-by-file tree: [`docs/project_structure.md`](docs/project_structure.md)
 
 ## Setup
 
@@ -164,33 +129,36 @@ If Snowflake reports `OK`, you're already configured, skip ahead. If it
 reports `SKIPPED` or `FAILED`, see
 [`docs/snowflake_setup.md`](docs/snowflake_setup.md) for full first-time
 setup: creating a trial account, installing SnowSQL, and running the DDL
-to create the warehouse, database, and schemas.
+to create the warehouse and the three databases.
 
-**Database design note.** `RAW`/`STAGING`/`PROD` are schemas inside one
-`CARESYNC_WH` database, not three separate databases. Cross-schema and
-cross-database queries in Snowflake use the same fully-qualified
-`database.schema.table` syntax either way, so splitting into databases adds
-no query simplicity. Access control between layers (e.g. restricting who
-can read `RAW`) is enforced with Snowflake roles and schema-level grants,
-which works identically within one database. dbt's standard convention on
-Snowflake is also one target database with multiple schemas, which is what
-`dbt_caresync/profiles_example.yml` and `models/staging/sources.yml`
-assume. Separate databases make more sense for genuinely separate
-environments (dev/staging/prod deployments), not for layers within one
-pipeline run.
+**Database design.** Three databases, one per pipeline layer:
+`NEXORA_RAW_WH` (faithful, string-typed copies of validated files),
+`NEXORA_STAGING_WH` (typed and standardized), `NEXORA_PROD_WH` (the reporting
+marts). Each has one schema of the same name; the run audit trail lives
+in `NEXORA_RAW_WH.AUDIT`. dbt reads `NEXORA_RAW_WH` as a cross-database source
+and writes marts into `NEXORA_PROD_WH` via `+database:` overrides in
+`dbt_project.yml`, see `docs/architecture.md` for the full layout.
 
 ### 4. Slack
 
-1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps), choosing *From scratch*.
-2. Add the `chat:write` bot token scope, install the app to your workspace.
-3. Invite the bot to your target channel.
-4. Set `SLACK_BOT_TOKEN` and `SLACK_CHANNEL_ID` in `.env`.
+Recommended channel name: `#nexora-data-alerts`, matching the project brief.
+
+1. Create the channel: in Slack, **+ > Create channel**, name it `nexora-data-alerts`.
+2. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps), choosing *From scratch*.
+3. Add the `chat:write` bot token scope, install the app to your workspace.
+4. Invite the bot to `#nexora-data-alerts` (`/invite @your-app-name`).
+5. Copy the channel ID (right-click the channel name > **View channel details**, ID is at the bottom).
+6. Set `SLACK_BOT_TOKEN` and `SLACK_CHANNEL_ID` in `.env`.
 
 ### 5. Email
 
-Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `NOTIFY_EMAIL_TO`
-in `.env`. Any standard SMTP provider works (Gmail app password, SES SMTP,
-SendGrid, etc.).
+Default provider is [Resend](https://resend.com), no app passwords, one API key.
+
+1. Sign up at [resend.com](https://resend.com), verify a sending domain (or use their shared `resend.dev` test domain to start).
+2. Copy your API key from the Resend dashboard.
+3. Set `RESEND_API_KEY` and `NOTIFY_EMAIL_TO` in `.env`.
+
+Prefer SMTP instead (Gmail app password, SES, SendGrid)? Set `EMAIL_PROVIDER=smtp` and fill in `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`.
 
 ### 6. Verify every connection before proceeding
 
@@ -318,11 +286,13 @@ fires even if an upstream task failed.
 - [`docs/runbook.md`](docs/runbook.md): what to do when a dataset is rejected, a task errors, or post-validation fails
 - [`docs/google_drive_setup.md`](docs/google_drive_setup.md): full first-time Google Drive API setup
 - [`docs/snowflake_setup.md`](docs/snowflake_setup.md): full first-time Snowflake account and CLI setup
+- [`docs/entity_relationship.md`](docs/entity_relationship.md): star schema ER diagram, grain, cardinality
+- [`docs/project_structure.md`](docs/project_structure.md): full file-by-file project tree
 
 ## Business questions
 
 SQL answers live in [`sql/business_questions.sql`](sql/business_questions.sql),
-run against `CARESYNC_WH.PROD` and `CARESYNC_WH.AUDIT.RUN_AUDIT`.
+run against `NEXORA_PROD_WH.PROD` and `NEXORA_RAW_WH.AUDIT.RUN_AUDIT`.
 
 ## Contributing
 
@@ -334,4 +304,4 @@ run against `CARESYNC_WH.PROD` and `CARESYNC_WH.AUDIT.RUN_AUDIT`.
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+[MIT](LICENSE)

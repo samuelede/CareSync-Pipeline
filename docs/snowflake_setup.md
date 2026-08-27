@@ -135,12 +135,14 @@ This makes `scripts.check_connections`, the loader, post-validation, and
 itself all use the same key pair, no password or MFA prompt anywhere in
 the pipeline.
 
-## 5. Create the warehouse, database, and schemas
+## 5. Create the warehouse and the three databases
 
-Run the project's DDL scripts once per environment. These create the
-`CARESYNC_WH` warehouse and database, and the `RAW` / `STAGING` / `PROD` /
-`AUDIT` schemas inside it (one database, four schemas, see the "Database
-design note" in the main README for why).
+Run the project's DDL scripts once per environment. `sql/ddl_raw.sql`
+creates the shared `NEXORA_WH` warehouse plus the `NEXORA_RAW_WH` database,
+schema, and all six RAW tables (every column typed as STRING; typing
+happens later in dbt). `sql/ddl_staging.sql` and `sql/ddl_prod.sql`
+create the `NEXORA_STAGING_WH` and `NEXORA_PROD_WH` databases (dbt owns the
+tables inside them). `sql/run_audit_table.sql` creates the audit trail.
 
 ```bash
 snowsql -c caresync -f sql/ddl_raw.sql
@@ -152,27 +154,29 @@ snowsql -c caresync -f sql/run_audit_table.sql
 If you haven't saved a named connection, replace `-c caresync` with
 `-a <account_identifier> -u <username>` in each command.
 
-Note that `sql/ddl_raw.sql` only creates the warehouse and database plus
-the `PATIENTS` table as a worked example. Add the remaining
-`ORGANIZATIONS`, `PROVIDERS`, `PAYERS`, `ENCOUNTERS`, and `CONDITIONS`
-table definitions following the same `_run_id` / `_loaded_at` pattern
-before loading real data.
-
 ## 6. Create a dedicated role and user (recommended, not required for a trial)
 
 The DDL scripts run fine under your default trial account role. For
 anything beyond local testing, create a scoped role so the pipeline's
-credentials aren't your personal login:
+credentials aren't your personal login. This role needs `USAGE` on all
+three databases since dbt's staging models read `NEXORA_RAW_WH` while
+writing to `NEXORA_STAGING_WH`, and marts write to `NEXORA_PROD_WH`:
 
 ```sql
-CREATE ROLE IF NOT EXISTS CARESYNC_LOADER;
-GRANT USAGE ON WAREHOUSE CARESYNC_WH TO ROLE CARESYNC_LOADER;
-GRANT USAGE ON DATABASE CARESYNC_WH TO ROLE CARESYNC_LOADER;
-GRANT ALL ON SCHEMA CARESYNC_WH.RAW TO ROLE CARESYNC_LOADER;
-GRANT ALL ON SCHEMA CARESYNC_WH.STAGING TO ROLE CARESYNC_LOADER;
-GRANT ALL ON SCHEMA CARESYNC_WH.PROD TO ROLE CARESYNC_LOADER;
-GRANT ALL ON SCHEMA CARESYNC_WH.AUDIT TO ROLE CARESYNC_LOADER;
-GRANT ROLE CARESYNC_LOADER TO USER <username>;
+CREATE ROLE IF NOT EXISTS NEXORA_LOADER;
+GRANT USAGE ON WAREHOUSE NEXORA_WH TO ROLE NEXORA_LOADER;
+
+GRANT USAGE ON DATABASE NEXORA_RAW_WH TO ROLE NEXORA_LOADER;
+GRANT ALL ON SCHEMA NEXORA_RAW_WH.RAW TO ROLE NEXORA_LOADER;
+GRANT ALL ON SCHEMA NEXORA_RAW_WH.AUDIT TO ROLE NEXORA_LOADER;
+
+GRANT USAGE ON DATABASE NEXORA_STAGING_WH TO ROLE NEXORA_LOADER;
+GRANT ALL ON SCHEMA NEXORA_STAGING_WH.STAGING TO ROLE NEXORA_LOADER;
+
+GRANT USAGE ON DATABASE NEXORA_PROD_WH TO ROLE NEXORA_LOADER;
+GRANT ALL ON SCHEMA NEXORA_PROD_WH.PROD TO ROLE NEXORA_LOADER;
+
+GRANT ROLE NEXORA_LOADER TO USER <username>;
 ```
 
 ## 7. Fill in `.env`
@@ -181,15 +185,13 @@ GRANT ROLE CARESYNC_LOADER TO USER <username>;
 SNOWFLAKE_ACCOUNT=<account_identifier>
 SNOWFLAKE_USER=<username>
 SNOWFLAKE_PASSWORD=<password>
-SNOWFLAKE_ROLE=CARESYNC_LOADER
-SNOWFLAKE_WAREHOUSE=CARESYNC_WH
-SNOWFLAKE_DATABASE=CARESYNC_WH
+SNOWFLAKE_ROLE=NEXORA_LOADER
+SNOWFLAKE_WAREHOUSE=NEXORA_WH
+SNOWFLAKE_DATABASE_RAW=NEXORA_RAW_WH
+SNOWFLAKE_DATABASE_STAGING=NEXORA_STAGING_WH
+SNOWFLAKE_DATABASE_PROD=NEXORA_PROD_WH
 SNOWFLAKE_AUTH_METHOD=password
 ```
-
-`SNOWFLAKE_WAREHOUSE` and `SNOWFLAKE_DATABASE` intentionally share the
-name `CARESYNC_WH`, they're different Snowflake object types (compute vs.
-storage) and are allowed to share a name. Not a typo.
 
 If step 4 needed the key-pair workaround because of an MFA error, set
 these instead and leave `SNOWFLAKE_PASSWORD` blank:

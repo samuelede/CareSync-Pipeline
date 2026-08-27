@@ -49,49 +49,44 @@ def rand_date(start_year=1940, end_year=2015):
 
 
 def gen_organizations(n=3):
-    rows = []
-    for i in range(n):
-        rows.append({
-            "Id": new_id(), "NAME": f"Clinic {i+1}", "ADDRESS": f"{100+i} Main St",
-            "CITY": "Boston", "STATE": "MA", "ZIP": "02118", "LAT": "42.33", "LON": "-71.07",
-            "PHONE": "617-555-0100", "REVENUE": round(random.uniform(1e5, 1e6), 2),
-            "UTILIZATION": random.randint(50, 500),
-        })
-    return rows
+    return [{
+        "Id": new_id(), "NAME": f"Clinic {i+1}", "ADDRESS": f"{100+i} Main St",
+        "CITY": "Boston", "STATE": "MA", "ZIP": "02118", "LAT": "42.33", "LON": "-71.07",
+        "PHONE": "617-555-0100", "REVENUE": round(random.uniform(1e5, 1e6), 2),
+        "UTILIZATION": random.randint(50, 500),
+    } for i in range(n)]
 
 
 def gen_providers(organizations, n=8):
-    rows = []
-    for i in range(n):
-        org = random.choice(organizations)
-        rows.append({
-            "Id": new_id(), "ORGANIZATION": org["Id"], "NAME": f"Dr. Provider {i+1}",
-            "GENDER": random.choice(GENDERS), "SPECIALITY": random.choice(SPECIALITIES),
-            "ADDRESS": org["ADDRESS"], "CITY": org["CITY"], "STATE": org["STATE"],
-            "ZIP": org["ZIP"], "LAT": org["LAT"], "LON": org["LON"],
-            "UTILIZATION": random.randint(10, 200),
-        })
-    return rows
+    return [{
+        "Id": new_id(), "ORGANIZATION": (org := random.choice(organizations))["Id"],
+        "NAME": f"Dr. Provider {i+1}",
+        "GENDER": random.choice(GENDERS), "SPECIALITY": random.choice(SPECIALITIES),
+        "ADDRESS": org["ADDRESS"], "CITY": org["CITY"], "STATE": org["STATE"],
+        "ZIP": org["ZIP"], "LAT": org["LAT"], "LON": org["LON"],
+        "UTILIZATION": random.randint(10, 200),
+    } for i in range(n)]
 
 
 def gen_payers(n=3):
     names = ["Nexora Direct", "Medicare", "BlueCross"]
-    rows = []
-    for i in range(n):
-        rows.append({
-            "Id": new_id(), "NAME": names[i % len(names)], "ADDRESS": "1 Insurance Way",
-            "CITY": "Boston", "STATE_HEADQUARTERED": "MA", "ZIP": "02110",
-            "PHONE": "617-555-0200", "AMOUNT_COVERED": round(random.uniform(1e4, 1e5), 2),
-            "AMOUNT_UNCOVERED": round(random.uniform(1e3, 1e4), 2),
-            "REVENUE": round(random.uniform(1e6, 1e7), 2),
-            "COVERED_ENCOUNTERS": random.randint(50, 500),
-            "UNCOVERED_ENCOUNTERS": random.randint(0, 50),
-            "UNIQUE_CUSTOMERS": random.randint(20, 200),
-        })
-    return rows
+    return [{
+        "Id": new_id(), "NAME": names[i % len(names)], "ADDRESS": "1 Insurance Way",
+        "CITY": "Boston", "STATE_HEADQUARTERED": "MA", "ZIP": "02110",
+        "PHONE": "617-555-0200", "AMOUNT_COVERED": round(random.uniform(1e4, 1e5), 2),
+        "AMOUNT_UNCOVERED": round(random.uniform(1e3, 1e4), 2),
+        "REVENUE": round(random.uniform(1e6, 1e7), 2),
+        "COVERED_ENCOUNTERS": random.randint(50, 500),
+        "UNCOVERED_ENCOUNTERS": random.randint(0, 50),
+        "UNIQUE_CUSTOMERS": random.randint(20, 200),
+    } for i in range(n)]
 
 
 def gen_patients(n=50):
+    # Left as a loop rather than a comprehension: birth/dead are computed
+    # once and reused across 3+ fields with a conditional in between, a
+    # comprehension here would need several chained walrus assignments and
+    # read worse than the loop it replaced.
     rows = []
     for i in range(n):
         birth = rand_date()
@@ -113,6 +108,10 @@ def gen_patients(n=50):
 
 
 def gen_encounters(patients, organizations, providers, payers, per_patient=3):
+    # Left as a nested loop: two levels of iteration plus four
+    # interdependent locals (start, stop, org, provider) computed once and
+    # reused. A comprehension would need a nested walrus chain that's
+    # harder to read than the loop, not easier.
     rows = []
     for patient in patients:
         for _ in range(random.randint(0, per_patient)):
@@ -135,15 +134,11 @@ def gen_encounters(patients, organizations, providers, payers, per_patient=3):
 
 
 def gen_conditions(encounters, rate=0.4):
-    rows = []
-    for enc in encounters:
-        if random.random() < rate:
-            code, desc = random.choice(CONDITION_CODES)
-            rows.append({
-                "START": enc["START"], "STOP": "", "PATIENT": enc["PATIENT"],
-                "ENCOUNTER": enc["Id"], "CODE": code, "DESCRIPTION": desc,
-            })
-    return rows
+    return [{
+        "START": enc["START"], "STOP": "", "PATIENT": enc["PATIENT"],
+        "ENCOUNTER": enc["Id"], "CODE": (cd := random.choice(CONDITION_CODES))[0],
+        "DESCRIPTION": cd[1],
+    } for enc in encounters if random.random() < rate]
 
 
 def write_csv(rows, path):

@@ -69,10 +69,6 @@ def read_run(run_id: str) -> list:
     """Reads all local audit rows for a run_id, used by scripts/send_run_summary.py."""
     if not os.path.exists(LOCAL_AUDIT_PATH):
         return []
-    rows = []
     with open(LOCAL_AUDIT_PATH) as f:
-        for line in f:
-            row = json.loads(line)
-            if row["run_id"] == run_id:
-                rows.append(row)
+        rows = [row for line in f if (row := json.loads(line))["run_id"] == run_id]
     return rows

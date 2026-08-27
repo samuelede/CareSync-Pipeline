@@ -14,7 +14,7 @@ GitHub Actions workflow, re-expressed with real dependency management:
         |                         rejected that dataset)
     dbt_run  (BashOperator or Cosmos, waits on all load tasks)
         |
-    post_validate  (GreatExpectationsOperator against CARESYNC_WH.PROD)
+    post_validate  (GreatExpectationsOperator against NEXORA_PROD_WH.PROD)
         |
     notify_run_summary  (trigger_rule=ALL_DONE, always runs even on failure,
                           so a run is never silent)
@@ -69,7 +69,7 @@ with DAG(
         raise NotImplementedError("BashOperator or PythonOperator invoking `dbt run`.")
 
     def post_validate(**context):
-        raise NotImplementedError("Run GE checkpoint against CARESYNC_WH.PROD.")
+        raise NotImplementedError("Run GE checkpoint against NEXORA_PROD_WH.PROD.")
 
     def notify_run_summary(**context):
         raise NotImplementedError("Send Slack + email success/failure summary, always runs.")

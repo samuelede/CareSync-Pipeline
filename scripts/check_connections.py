@@ -34,6 +34,7 @@ from config.settings import (
     GDRIVE_FORCE_LOCAL,
     SNOWFLAKE_CONFIG, get_snowflake_connect_kwargs,
     SLACK_BOT_TOKEN, SLACK_CHANNEL_ID,
+    EMAIL_PROVIDER, RESEND_API_KEY,
     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD,
 )
 
@@ -147,6 +148,25 @@ def check_slack() -> tuple:
         return FAILED, f"could not reach Slack: {exc}"
 
 
+def check_resend() -> tuple:
+    if not RESEND_API_KEY:
+        return SKIPPED, "RESEND_API_KEY not set in .env; notifications will print instead of sending"
+    try:
+        import requests
+        resp = requests.get(
+            "https://api.resend.com/domains",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            return OK, "Resend API key valid"
+        if resp.status_code == 401:
+            return FAILED, "Resend API key rejected (401), check RESEND_API_KEY"
+        return FAILED, f"Resend API returned {resp.status_code}: {resp.text[:200]}"
+    except Exception as exc:
+        return FAILED, f"could not reach Resend: {exc}"
+
+
 def check_smtp() -> tuple:
     if not SMTP_HOST or not SMTP_USER:
         return SKIPPED, "SMTP_HOST/SMTP_USER not set in .env; notifications will print instead of sending"
@@ -163,12 +183,19 @@ def check_smtp() -> tuple:
         return FAILED, f"could not connect/login: {exc}"
 
 
+def check_email() -> tuple:
+    """Checks whichever provider EMAIL_PROVIDER selects, so the printed
+    check list always shows exactly one email row regardless of which
+    provider is active."""
+    return check_resend() if EMAIL_PROVIDER == "resend" else check_smtp()
+
+
 CHECKS = [
     ("environment file (.env)", check_env_file),
     ("Google Drive", check_google_drive),
     ("Snowflake", check_snowflake),
     ("Slack", check_slack),
-    ("SMTP / email", check_smtp),
+    (f"Email ({EMAIL_PROVIDER})", check_email),
 ]
 
 ICON = {OK: "[OK]", SKIPPED: "[SKIPPED]", FAILED: "[FAILED]"}

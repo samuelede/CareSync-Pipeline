@@ -23,14 +23,15 @@ def check_schema(df: pd.DataFrame, expected_columns: list) -> tuple:
 
 
 def check_mandatory_fields(df: pd.DataFrame, mandatory: list) -> tuple:
-    errors = []
-    for col in mandatory:
+    def _check_one(col: str):
         if col not in df.columns:
-            errors.append(f"mandatory column '{col}' absent")
-            continue
+            return f"mandatory column '{col}' absent"
         n_null = df[col].isna().sum() + (df[col].astype(str).str.strip() == "").sum()
         if n_null > 0:
-            errors.append(f"'{col}' has {n_null} null/blank value(s)")
+            return f"'{col}' has {n_null} null/blank value(s)"
+        return None
+
+    errors = [msg for col in mandatory if (msg := _check_one(col)) is not None]
     return (len(errors) == 0, errors)
 
 
@@ -50,14 +51,17 @@ def check_id_format(df: pd.DataFrame, id_column: str = None, composite_key: list
 
 
 def check_allowed_values(df: pd.DataFrame, allowed_values: dict) -> tuple:
-    errors = []
-    for col, allowed in allowed_values.items():
-        if col not in df.columns:
-            continue
+    def _check_one(col: str, allowed: set):
         actual = set(df[col].dropna().astype(str).unique())
         bad = actual - {str(a) for a in allowed}
         if bad:
-            errors.append(f"'{col}' has disallowed values: {sorted(bad)}")
+            return f"'{col}' has disallowed values: {sorted(bad)}"
+        return None
+
+    errors = [
+        msg for col, allowed in allowed_values.items()
+        if col in df.columns and (msg := _check_one(col, allowed)) is not None
+    ]
     return (len(errors) == 0, errors)
 
 
@@ -71,15 +75,19 @@ def _parse_dates(series: pd.Series) -> pd.Series:
 
 
 def check_chronology(df: pd.DataFrame, chronology_pairs: list) -> tuple:
-    errors = []
-    for start_col, end_col in chronology_pairs:
-        if start_col not in df.columns or end_col not in df.columns:
-            continue
+    def _check_one(start_col: str, end_col: str):
         start = _parse_dates(df[start_col])
         end = _parse_dates(df[end_col])
         violations = df[(end.notna()) & (start.notna()) & (end < start)]
         if len(violations) > 0:
-            errors.append(f"{len(violations)} row(s) where '{end_col}' precedes '{start_col}'")
+            return f"{len(violations)} row(s) where '{end_col}' precedes '{start_col}'"
+        return None
+
+    errors = [
+        msg for start_col, end_col in chronology_pairs
+        if start_col in df.columns and end_col in df.columns
+        and (msg := _check_one(start_col, end_col)) is not None
+    ]
     return (len(errors) == 0, errors)
 
 

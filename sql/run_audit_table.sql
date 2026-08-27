@@ -1,10 +1,11 @@
 -- One row per (run_id, dataset) capturing both gates' results, plus a
 -- run-level summary row. This is the audit trail referenced throughout
 -- the spec: quarantine history, notification history (by joining on
--- run_id), and SLA performance over time.
-CREATE SCHEMA IF NOT EXISTS CARESYNC_WH.AUDIT;
+-- run_id), and SLA performance over time. Lives in NEXORA_RAW_WH since it
+-- tracks ingestion of raw files, the earliest pipeline stage.
+CREATE SCHEMA IF NOT EXISTS NEXORA_RAW_WH.AUDIT;
 
-CREATE TABLE IF NOT EXISTS CARESYNC_WH.AUDIT.RUN_AUDIT (
+CREATE TABLE IF NOT EXISTS NEXORA_RAW_WH.AUDIT.RUN_AUDIT (
     run_id STRING NOT NULL,
     dataset STRING,                         -- NULL for run-level summary rows
     stage STRING,                           -- SENSING | PRE_VALIDATION | LOAD | DBT | POST_VALIDATION

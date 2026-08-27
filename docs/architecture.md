@@ -15,15 +15,33 @@
    - Fail: quarantined, its load/transform tasks are **skipped** (not
      failed), the skip cascades to foreign-key-dependent datasets, and
      Slack + email fire with the failure detail.
-4. **Load**: validated files load into `CARESYNC_WH.RAW` (Snowflake).
-5. **Transform**: dbt builds `CARESYNC_WH.STAGING` (PHI stripped here) and
-   `CARESYNC_WH.PROD` (single-fact star schema: `fct_appointments` +
-   dimensions + `conditions_detail`).
+4. **Load**: validated files load into `NEXORA_RAW_WH.RAW` (Snowflake).
+5. **Transform**: dbt builds `NEXORA_STAGING_WH.STAGING` (PHI stripped here)
+   and `NEXORA_PROD_WH.PROD` (single-fact star schema: `fct_appointments` +
+   dimensions + `conditions_detail`, see
+   [`docs/entity_relationship.md`](entity_relationship.md) for the
+   diagram).
 6. **Post-validation gate**: the PROD layer is checked against business
    requirements (no orphan keys, no PHI leakage, row counts in bounds, no
    duplicate natural keys). Pass/fail is notified via Slack + email.
-7. **Audit**: every stage writes to `CARESYNC_WH.AUDIT.RUN_AUDIT`,
+7. **Audit**: every stage writes to `NEXORA_RAW_WH.AUDIT.RUN_AUDIT`,
    traceable by `run_id`.
+
+## Database layout
+
+Three Snowflake databases, one per pipeline layer:
+
+| Database | Purpose |
+|---|---|
+| `NEXORA_RAW_WH` | Faithful, string-typed copies of validated files. No casting, no cleaning. |
+| `NEXORA_STAGING_WH` | Typed and standardized. PHI dropped here. |
+| `NEXORA_PROD_WH` | The reporting marts (the star schema). |
+
+Each has one schema of the same name (`RAW`, `STAGING`, `PROD`); the run
+audit trail lives in `NEXORA_RAW_WH.AUDIT`. dbt's staging models read across
+databases from `NEXORA_RAW_WH` via an explicit `database:` override in
+`sources.yml`, and marts materialize into `NEXORA_PROD_WH` via a
+`+database:` override in `dbt_project.yml`.
 
 ## Dependency map (drives cascade-skip)
 

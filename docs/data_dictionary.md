@@ -4,7 +4,7 @@
 
 | Dataset | Grain | Key fields | Notes |
 |---|---|---|---|
-| organizations | one row per clinic/org | Id, NAME, ADDRESS | independent (no upstream FK) |
+| organizations | one row per clinic/org | Id, NAME, ADDRESS | independent (no upstream FK); becomes `dim_clinics` in PROD |
 | providers | one row per provider | Id, ORGANIZATION, NAME | depends on organizations |
 | payers | one row per payer | Id, NAME | independent |
 | patients | one row per patient | Id, SSN, FIRST, LAST, BIRTHDATE | independent; SSN/FIRST/LAST are PHI, stripped at staging |
@@ -19,6 +19,9 @@ any license/document number columns.
 
 ## PROD star schema
 
-- `fct_appointments`: one row per encounter
-- `dim_patient`, `dim_provider`, `dim_organization`, `dim_payer`
+See [`docs/entity_relationship.md`](entity_relationship.md) for the full
+diagram.
+
+- `fct_appointments`: one row per encounter, in `NEXORA_PROD_WH.PROD`
+- `dim_patients`, `dim_providers`, `dim_clinics`, `dim_payers`
 - `conditions_detail`: one row per condition, FK to `fct_appointments`

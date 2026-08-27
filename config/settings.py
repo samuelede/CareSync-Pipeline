@@ -31,10 +31,11 @@ GDRIVE_OAUTH_TOKEN_JSON = os.getenv("GDRIVE_OAUTH_TOKEN_JSON", "./config/gdrive_
 GDRIVE_FORCE_LOCAL = os.getenv("GDRIVE_FORCE_LOCAL", "false").lower() in ("true", "1", "yes")
 
 # --- Snowflake ---
-# One database, one schema per pipeline layer (RAW / STAGING / PROD /
-# AUDIT). Access control between layers is enforced with Snowflake roles
-# and schema grants, not separate databases; dbt's Snowflake convention is
-# one target database with multiple schemas.
+# Three databases, one per pipeline layer, per the platform's data
+# architecture: NEXORA_RAW_WH (faithful, string-typed copies of validated
+# files), NEXORA_STAGING_WH (typed and standardized), NEXORA_PROD_WH (the
+# reporting marts). Each has one schema of the same name holding its
+# tables; the run audit trail lives in NEXORA_RAW_WH.AUDIT.
 #
 # SNOWFLAKE_AUTH_METHOD selects how the pipeline authenticates:
 #   password       (default) plain password login, works unless your
@@ -54,12 +55,24 @@ SNOWFLAKE_AUTH_METHOD = os.getenv("SNOWFLAKE_AUTH_METHOD", "password")
 SNOWFLAKE_PRIVATE_KEY_PATH = os.getenv("SNOWFLAKE_PRIVATE_KEY_PATH", "./config/snowflake_rsa_key.p8")
 SNOWFLAKE_PRIVATE_KEY_PASSPHRASE = os.getenv("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE")
 
+DATABASE_RAW = os.getenv("SNOWFLAKE_DATABASE_RAW", "NEXORA_RAW_WH")
+DATABASE_STAGING = os.getenv("SNOWFLAKE_DATABASE_STAGING", "NEXORA_STAGING_WH")
+DATABASE_PROD = os.getenv("SNOWFLAKE_DATABASE_PROD", "NEXORA_PROD_WH")
+SCHEMA_RAW = "RAW"
+SCHEMA_STAGING = "STAGING"
+SCHEMA_PROD = "PROD"
+SCHEMA_AUDIT = "AUDIT"
+
 SNOWFLAKE_CONFIG = {
     "account": os.getenv("SNOWFLAKE_ACCOUNT"),
     "user": os.getenv("SNOWFLAKE_USER"),
-    "role": os.getenv("SNOWFLAKE_ROLE", "CARESYNC_LOADER"),
-    "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE", "CARESYNC_WH"),
-    "database": os.getenv("SNOWFLAKE_DATABASE", "CARESYNC_WH"),
+    "role": os.getenv("SNOWFLAKE_ROLE", "NEXORA_LOADER"),
+    "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE", "NEXORA_WH"),
+    # Initial connection database only, most queries fully-qualify with
+    # DATABASE_RAW / DATABASE_STAGING / DATABASE_PROD regardless. RAW is
+    # the default since sensing and loading (the first pipeline stages)
+    # operate there.
+    "database": DATABASE_RAW,
 }
 if SNOWFLAKE_AUTH_METHOD == "password":
     SNOWFLAKE_CONFIG["password"] = os.getenv("SNOWFLAKE_PASSWORD")
@@ -67,11 +80,6 @@ elif SNOWFLAKE_AUTH_METHOD == "externalbrowser":
     SNOWFLAKE_CONFIG["authenticator"] = "externalbrowser"
 elif SNOWFLAKE_AUTH_METHOD == "keypair":
     pass  # private_key bytes are loaded lazily, see get_snowflake_connect_kwargs() below
-DATABASE = SNOWFLAKE_CONFIG["database"]
-SCHEMA_RAW = "RAW"
-SCHEMA_STAGING = "STAGING"
-SCHEMA_PROD = "PROD"
-SCHEMA_AUDIT = "AUDIT"
 
 
 def get_snowflake_connect_kwargs() -> dict:
@@ -104,6 +112,14 @@ def get_snowflake_connect_kwargs() -> dict:
 # --- Slack / Email ---
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 SLACK_CHANNEL_ID = os.getenv("SLACK_CHANNEL_ID")
+
+# EMAIL_PROVIDER: "resend" (default, simplest, no app passwords) or "smtp"
+# (any standard SMTP server: Gmail app password, SES, SendGrid's SMTP
+# interface). Both send the same event matrix via the same
+# send_email_alert() call, see notifications/email_notify.py.
+EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "resend")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "CareSync <alerts@resend.dev>")
 SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
 SMTP_USER = os.getenv("SMTP_USER")

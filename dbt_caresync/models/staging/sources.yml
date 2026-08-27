@@ -1,9 +1,12 @@
 version: 2
 
-# Single database (CARESYNC_WH) shared with the dbt profile's target database,
-# so no cross-database database: override is needed here, only the schema.
+# Cross-database source: RAW lives in its own NEXORA_RAW_WH database,
+# separate from this project's target database (NEXORA_STAGING_WH). The role
+# used to run dbt needs USAGE on NEXORA_RAW_WH granted (see
+# docs/snowflake_setup.md, step 6).
 sources:
   - name: raw
+    database: "{{ env_var('SNOWFLAKE_DATABASE_RAW', 'NEXORA_RAW_WH') }}"
     schema: RAW
     tables:
       - name: organizations
@@ -12,4 +15,3 @@ sources:
       - name: patients
       - name: encounters
       - name: conditions
-
