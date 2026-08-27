@@ -145,18 +145,20 @@ Recommended channel name: `#nexora-data-alerts`, matching the project brief.
 
 1. Create the channel: in Slack, **+ > Create channel**, name it `nexora-data-alerts`.
 2. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps), choosing *From scratch*.
-3. Add the `chat:write` bot token scope, install the app to your workspace.
+3. Add bot token scopes `chat:write` and `channels:read` (use `groups:read` instead of `channels:read` if the channel is private), install the app to your workspace.
 4. Invite the bot to `#nexora-data-alerts` (`/invite @your-app-name`).
 5. Copy the channel ID (right-click the channel name > **View channel details**, ID is at the bottom).
 6. Set `SLACK_BOT_TOKEN` and `SLACK_CHANNEL_ID` in `.env`.
+
+`channels:read`/`groups:read` is needed for `scripts.check_connections` to confirm the channel is reachable; `chat:write` alone will send messages fine but the connection check will report `missing_scope`. Added a scope after installing? Click **Reinstall to Workspace** on the same page and re-copy the token, it may change.
 
 ### 5. Email
 
 Default provider is [Resend](https://resend.com), no app passwords, one API key.
 
-1. Sign up at [resend.com](https://resend.com), verify a sending domain (or use their shared `resend.dev` test domain to start).
-2. Copy your API key from the Resend dashboard.
-3. Set `RESEND_API_KEY` and `NOTIFY_EMAIL_TO` in `.env`.
+1. Sign up at [resend.com](https://resend.com).
+2. Copy your API key from the Resend dashboard. A "Sending access" key is fine, no need for "Full access."
+3. Set `RESEND_API_KEY` and `NOTIFY_EMAIL_TO` in `.env`. Leave `RESEND_FROM_EMAIL` at its default (`onboarding@resend.dev`), Resend's built-in test sender that works with zero setup; verify your own domain later if you want a branded from-address.
 
 Prefer SMTP instead (Gmail app password, SES, SendGrid)? Set `EMAIL_PROVIDER=smtp` and fill in `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`.
 

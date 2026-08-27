@@ -141,16 +141,18 @@ def gen_conditions(encounters, rate=0.4):
     } for enc in encounters if random.random() < rate]
 
 
-def write_csv(rows, path):
-    if not rows:
-        # still write a header-only file using known field order from the first
-        # non-empty generator call. Callers always pass at least an empty list
-        # with a defined schema upstream, so this only triggers for conditions
-        # when rate produced zero rows; write empty body under the same columns.
-        return
+def write_csv(rows, path, fieldnames=None):
+    """Writes rows to a CSV, always creating the file, even with zero rows.
+    A missing file and a validly-empty dataset are different things
+    downstream: pre_validate.py's process_file() treats a missing path as
+    file_missing/REJECTED, but conditions.csv having zero rows is a valid
+    outcome (schemas.py sets min_rows: 0 for conditions), so the file must
+    still exist with just a header row when that happens.
+    """
+    field_names = fieldnames or (list(rows[0].keys()) if rows else [])
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        writer = csv.DictWriter(f, fieldnames=field_names)
         writer.writeheader()
         writer.writerows(rows)
 
@@ -169,7 +171,8 @@ def main(run_id: str, num_patients: int):
     write_csv(payers, f"{out_dir}/payers.csv")
     write_csv(patients, f"{out_dir}/patients.csv")
     write_csv(encounters, f"{out_dir}/encounters.csv")
-    write_csv(conditions, f"{out_dir}/conditions.csv")
+    write_csv(conditions, f"{out_dir}/conditions.csv",
+              fieldnames=["START", "STOP", "PATIENT", "ENCOUNTER", "CODE", "DESCRIPTION"])
 
     print(f"[simulate_weekly_drop] wrote 6 files to {out_dir} "
           f"({len(patients)} patients, {len(encounters)} encounters, {len(conditions)} conditions)")

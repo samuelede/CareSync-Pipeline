@@ -34,7 +34,7 @@ from config.settings import (
     GDRIVE_FORCE_LOCAL,
     SNOWFLAKE_CONFIG, get_snowflake_connect_kwargs,
     SLACK_BOT_TOKEN, SLACK_CHANNEL_ID,
-    EMAIL_PROVIDER, RESEND_API_KEY,
+    EMAIL_PROVIDER, RESEND_API_KEY, RESEND_FROM_EMAIL,
     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD,
 )
 
@@ -124,6 +124,13 @@ def check_snowflake() -> tuple:
     except ImportError:
         return FAILED, "snowflake-connector-python not installed. Run: pip install -r requirements.txt"
     except Exception as exc:
+        msg = str(exc)
+        if "404 Not Found" in msg and "login-request" in msg:
+            return FAILED, (
+                f"{exc} | Likely cause: SNOWFLAKE_ACCOUNT is missing the organization "
+                f"prefix. If `snowsql -a ORG-ACCOUNT -u ...` works, .env needs the "
+                f"exact same 'ORG-ACCOUNT' value, not just the account part after the dash."
+            )
         return FAILED, f"could not connect: {exc}"
 
 
@@ -143,7 +150,15 @@ def check_slack() -> tuple:
     except ImportError:
         return FAILED, "slack_sdk not installed. Run: pip install -r requirements.txt"
     except SlackApiError as exc:
-        return FAILED, f"Slack API error: {exc.response['error']}"
+        error = exc.response["error"]
+        if error == "invalid_auth":
+            hint = (
+                " | Likely cause: SLACK_BOT_TOKEN isn't a Bot User OAuth Token "
+                "(should start with 'xoxb-'), copy it from OAuth & Permissions after "
+                "installing the app to your workspace, not the Signing Secret or Client Secret."
+            )
+            return FAILED, f"Slack API error: {error}{hint}"
+        return FAILED, f"Slack API error: {error}"
     except Exception as exc:
         return FAILED, f"could not reach Slack: {exc}"
 
@@ -153,15 +168,28 @@ def check_resend() -> tuple:
         return SKIPPED, "RESEND_API_KEY not set in .env; notifications will print instead of sending"
     try:
         import requests
-        resp = requests.get(
-            "https://api.resend.com/domains",
+        # POST /emails (a real send, but to Resend's official test address,
+        # which is simulated and never actually delivered) rather than
+        # GET /domains: a "Sending access" API key, the recommended,
+        # more restricted key type, can send but cannot list domains, so
+        # /domains returns 401 even for a perfectly valid sending key.
+        resp = requests.post(
+            "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+            json={
+                "from": RESEND_FROM_EMAIL,
+                "to": ["delivered@resend.dev"],
+                "subject": "CareSync connection check",
+                "text": "Verification call from scripts.check_connections. Nothing is actually delivered.",
+            },
             timeout=15,
         )
-        if resp.status_code == 200:
-            return OK, "Resend API key valid"
+        if resp.status_code in (200, 201):
+            return OK, "Resend API key valid (test send accepted)"
         if resp.status_code == 401:
             return FAILED, "Resend API key rejected (401), check RESEND_API_KEY"
+        if resp.status_code in (403, 422):
+            return FAILED, f"Resend rejected the request ({resp.status_code}): {resp.text[:200]}"
         return FAILED, f"Resend API returned {resp.status_code}: {resp.text[:200]}"
     except Exception as exc:
         return FAILED, f"could not reach Resend: {exc}"

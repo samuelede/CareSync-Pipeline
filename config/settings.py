@@ -119,7 +119,7 @@ SLACK_CHANNEL_ID = os.getenv("SLACK_CHANNEL_ID")
 # send_email_alert() call, see notifications/email_notify.py.
 EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "resend")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "CareSync <alerts@resend.dev>")
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "CareSync <onboarding@resend.dev>")
 SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
 SMTP_USER = os.getenv("SMTP_USER")
