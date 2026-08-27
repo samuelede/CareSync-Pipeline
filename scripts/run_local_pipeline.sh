@@ -5,6 +5,16 @@
 set -euo pipefail
 RUN_ID="${1:?Usage: run_local_pipeline.sh <run_id>}"
 
+# dbt's profiles.yml reads real OS environment variables via env_var(),
+# not .env directly (that's a python-dotenv mechanism the Python scripts
+# use, dbt doesn't know about it). Export .env's contents into this
+# shell so the `dbt run` step below actually has SNOWFLAKE_ACCOUNT etc.
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
+
 python -m scripts.check_connections
 python -m sensing.drive_sensor --run-id "$RUN_ID"
 python -m validation.pandas.pre_validate --run-id "$RUN_ID"
