@@ -4,7 +4,7 @@ Writes one row per (run_id, dataset, stage) to the run audit trail.
 Always writes locally to data/audit/run_audit.jsonl (append-only, one JSON
 object per line) so the pipeline is fully testable without Snowflake
 credentials. If Snowflake credentials are present in config.settings, also
-inserts into CARESYNC_WH.AUDIT.RUN_AUDIT (see sql/run_audit_table.sql) so
+inserts into NEXORA_RAW_WH.AUDIT.RUN_AUDIT (see sql/run_audit_table.sql) so
 production runs get the same audit trail in the warehouse.
 """
 import json
@@ -40,16 +40,16 @@ def write_audit_row(run_id: str, dataset: str, stage: str, status: str,
 
 
 def _write_to_snowflake_if_configured(row: dict):
-    from config.settings import SNOWFLAKE_CONFIG
+    from config.settings import SNOWFLAKE_CONFIG, DATABASE_RAW, get_snowflake_connect_kwargs
     if not SNOWFLAKE_CONFIG.get("account"):
         return  # no Snowflake configured locally, local jsonl is source of truth for now
     try:
         import snowflake.connector
-        conn = snowflake.connector.connect(**SNOWFLAKE_CONFIG)
+        conn = snowflake.connector.connect(**get_snowflake_connect_kwargs())
         cur = conn.cursor()
         cur.execute(
-            """
-            INSERT INTO CARESYNC_WH.AUDIT.RUN_AUDIT
+            f"""
+            INSERT INTO {DATABASE_RAW}.AUDIT.RUN_AUDIT
                 (run_id, dataset, stage, status, row_count, failed_checks,
                  quarantine_path, notified_slack, notified_email)
             SELECT %(run_id)s, %(dataset)s, %(stage)s, %(status)s, %(row_count)s,
