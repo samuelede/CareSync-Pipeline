@@ -234,9 +234,13 @@ SNOWFLAKE_PRIVATE_KEY_PATH=./config/snowflake_rsa_key.p8
 python -m scripts.check_connections
 ```
 
-This should report `OK` for Snowflake, printing the Snowflake version,
-account, user, and region. If it reports `FAILED`, the most common causes
-are:
+Successful output looks like this:
+
+```
+[OK]        Snowflake                  connected as <username> to account <account> (Snowflake <version>)
+```
+
+If it reports `FAILED`, the most common causes are:
 
 - Wrong account identifier format (missing or extra region/cloud suffix).
 - Password typo, or the trial account's password was reset after
