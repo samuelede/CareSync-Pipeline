@@ -70,6 +70,33 @@ Then connect any time with:
 snowsql -c caresync
 ```
 
+**If `snowsql -c caresync` says "No connection could be found"**, the
+config file wasn't created, or wasn't saved where SnowSQL looks for it.
+Fix directly from the terminal:
+
+```bash
+mkdir -p ~/.snowsql
+cat > ~/.snowsql/config << 'EOF'
+[connections.caresync]
+accountname = <account_identifier>
+username = <username>
+private_key_path = config/snowflake_rsa_key.p8
+EOF
+```
+
+Omit the `private_key_path` line if you're using password login instead
+of key-pair auth. Verify it saved, then retry:
+
+```bash
+cat ~/.snowsql/config
+snowsql -c caresync
+```
+
+If it still fails, `private_key_path` is relative to your terminal's
+current directory when you run the command, not the repo root
+permanently. Either always run `snowsql -c caresync` from the repo root,
+or switch the config to an absolute path.
+
 ## MFA workaround: key-pair authentication
 
 RSA key-pair authentication bypasses password and MFA entirely, on any
