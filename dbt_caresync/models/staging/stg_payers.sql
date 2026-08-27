@@ -1,6 +1,7 @@
 select
     "Id"                    as payer_id,
     "NAME"                  as payer_name,
+    "OWNERSHIP"             as ownership,
     "STATE_HEADQUARTERED"   as state_headquartered,
     "AMOUNT_COVERED"        as amount_covered,
     "AMOUNT_UNCOVERED"      as amount_uncovered,

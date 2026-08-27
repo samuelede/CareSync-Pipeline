@@ -7,7 +7,9 @@ select
     "CITY"         as city,
     "STATE"        as state,
     "ZIP"          as zip,
-    "UTILIZATION"  as utilization,
+    "ENCOUNTERS"   as lifetime_encounters,
+    "PROCEDURES"   as lifetime_procedures,
+    "NPI"          as npi,
     _run_id,
     _loaded_at
 from {{ source('raw', 'providers') }}
