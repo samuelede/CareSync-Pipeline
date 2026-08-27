@@ -73,6 +73,7 @@ SNOWFLAKE_CONFIG = {
     # the default since sensing and loading (the first pipeline stages)
     # operate there.
     "database": DATABASE_RAW,
+    "schema": "RAW",
 }
 if SNOWFLAKE_AUTH_METHOD == "password":
     SNOWFLAKE_CONFIG["password"] = os.getenv("SNOWFLAKE_PASSWORD")

@@ -26,6 +26,7 @@ import pandas as pd
 
 from config.settings import SNOWFLAKE_CONFIG, DATABASE_RAW, get_snowflake_connect_kwargs
 from scripts.audit_log import write_audit_row
+from validation.pandas.schemas import SCHEMAS
 
 TABLE_MAP = {
     "organizations": "ORGANIZATIONS", "providers": "PROVIDERS", "payers": "PAYERS",
@@ -53,9 +54,12 @@ def load_dataset(dataset: str, run_id: str) -> int:
     try:
         cur = conn.cursor()
         cur.execute(f"USE DATABASE {DATABASE_RAW}")
+        cur.execute("USE SCHEMA RAW")
         cur.execute(f"PUT file://{csv_path} @%{table} OVERWRITE = TRUE")
+        columns = SCHEMAS[dataset]["columns"]
+        quoted_columns = ", ".join(f'"{c}"' for c in columns)
         cur.execute(f"""
-            COPY INTO RAW.{table}
+            COPY INTO RAW.{table} ({quoted_columns})
             FROM @%{table}
             FILE_FORMAT = (TYPE = CSV SKIP_HEADER = 1 FIELD_OPTIONALLY_ENCLOSED_BY = '"')
             FORCE = TRUE
