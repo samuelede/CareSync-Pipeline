@@ -26,6 +26,7 @@ erDiagram
         string city
         string state
         string county
+        string fips
         string zip
         number healthcare_expenses
         number healthcare_coverage
@@ -40,7 +41,9 @@ erDiagram
         string city
         string state
         string zip
-        number utilization
+        number lifetime_encounters
+        number lifetime_procedures
+        string npi
     }
 
     dim_clinics {
@@ -55,11 +58,13 @@ erDiagram
         string phone
         number revenue
         number utilization
+        string npi
     }
 
     dim_payers {
         string payer_key PK
         string payer_name
+        string ownership
         string state_headquartered
         number amount_covered
         number amount_uncovered
@@ -89,6 +94,7 @@ erDiagram
         string patient_key FK
         timestamp start_ts
         timestamp stop_ts
+        string code_system
         string condition_code
         string condition_description
     }

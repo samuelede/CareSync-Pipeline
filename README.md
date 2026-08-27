@@ -181,7 +181,7 @@ check runs automatically as the first step of `run_local_pipeline.sh`.
 
 ### 7. Generate a weekly batch
 
-Two options, both writing to the same place (`data/landing/<run_id>/`):
+Three options, all writing to the same place (`data/landing/<run_id>/`):
 
 ```bash
 # Option A: pure Python, no external tools, works everywhere (recommended for dev/CI)
@@ -189,6 +189,25 @@ python -m scripts.simulate_weekly_drop --run-id 2026-08-10 --patients 200
 
 # Option B: real Synthea (requires Java 11+ and a local Synthea jar)
 ./scripts/generate_synthea_data.sh 200 2026-08-10
+
+# Option C: real historical Synthea data, sliced into actual weekly batches
+python -m scripts.split_synthea_into_weeks --source data/real_synthea_sample --out data/weekly_splits
+cp data/weekly_splits/<a-week-folder>/*.csv data/landing/2026-08-10/
+```
+
+Option C uses `data/real_synthea_sample/`, a trimmed, referentially-intact
+copy of a real Synthea export (see
+[`docs/data_dictionary.md`](docs/data_dictionary.md)) already committed
+in the repo. Point `--source` at a full downloaded export instead for
+more weeks of real historical data.
+
+Before generating anything, `scripts/explore_synthea_data.py` re-verifies
+any Synthea export (real or the committed sample) against
+`validation/pandas/schemas.py`, catching schema drift and referential
+integrity issues before they become a pipeline bug:
+
+```bash
+python -m scripts.explore_synthea_data --dir data/real_synthea_sample
 ```
 
 ### 8. Run the pipeline locally

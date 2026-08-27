@@ -27,8 +27,10 @@ MARITAL = ["M", "S", "D", "W", ""]
 RACES = ["white", "black", "asian", "native", "other"]
 ETHNICITIES = ["hispanic", "nonhispanic"]
 ENCOUNTER_CLASSES = ["ambulatory", "emergency", "inpatient", "wellness",
-                     "urgentcare", "outpatient", "home", "virtual"]
+                     "urgentcare", "outpatient", "home", "virtual",
+                     "hospice", "snf"]
 SPECIALITIES = ["GENERAL PRACTICE", "PEDIATRICS", "CARDIOLOGY", "ORTHOPEDICS"]
+CONDITION_SYSTEM = "http://snomed.info/sct"
 CONDITION_CODES = [
     ("44054006", "Diabetes mellitus type 2"),
     ("38341003", "Hypertension"),
@@ -54,6 +56,7 @@ def gen_organizations(n=3):
         "CITY": "Boston", "STATE": "MA", "ZIP": "02118", "LAT": "42.33", "LON": "-71.07",
         "PHONE": "617-555-0100", "REVENUE": round(random.uniform(1e5, 1e6), 2),
         "UTILIZATION": random.randint(50, 500),
+        "NPI": str(random.randint(1000000000, 9999999999)),
     } for i in range(n)]
 
 
@@ -64,21 +67,32 @@ def gen_providers(organizations, n=8):
         "GENDER": random.choice(GENDERS), "SPECIALITY": random.choice(SPECIALITIES),
         "ADDRESS": org["ADDRESS"], "CITY": org["CITY"], "STATE": org["STATE"],
         "ZIP": org["ZIP"], "LAT": org["LAT"], "LON": org["LON"],
-        "UTILIZATION": random.randint(10, 200),
+        "ENCOUNTERS": random.randint(10, 200), "PROCEDURES": random.randint(0, 100),
+        "NPI": str(random.randint(1000000000, 9999999999)),
     } for i in range(n)]
 
 
 def gen_payers(n=3):
     names = ["Nexora Direct", "Medicare", "BlueCross"]
+    ownerships = ["GOVERNMENT", "PRIVATE", "NON-PROFIT"]
     return [{
-        "Id": new_id(), "NAME": names[i % len(names)], "ADDRESS": "1 Insurance Way",
+        "Id": new_id(), "NAME": names[i % len(names)],
+        "OWNERSHIP": ownerships[i % len(ownerships)], "ADDRESS": "1 Insurance Way",
         "CITY": "Boston", "STATE_HEADQUARTERED": "MA", "ZIP": "02110",
         "PHONE": "617-555-0200", "AMOUNT_COVERED": round(random.uniform(1e4, 1e5), 2),
         "AMOUNT_UNCOVERED": round(random.uniform(1e3, 1e4), 2),
         "REVENUE": round(random.uniform(1e6, 1e7), 2),
         "COVERED_ENCOUNTERS": random.randint(50, 500),
         "UNCOVERED_ENCOUNTERS": random.randint(0, 50),
+        "COVERED_MEDICATIONS": random.randint(20, 200),
+        "UNCOVERED_MEDICATIONS": random.randint(0, 20),
+        "COVERED_PROCEDURES": random.randint(20, 200),
+        "UNCOVERED_PROCEDURES": random.randint(0, 20),
+        "COVERED_IMMUNIZATIONS": random.randint(5, 50),
+        "UNCOVERED_IMMUNIZATIONS": random.randint(0, 5),
         "UNIQUE_CUSTOMERS": random.randint(20, 200),
+        "QOLS_AVG": round(random.uniform(0.5, 1.0), 4),
+        "MEMBER_MONTHS": random.randint(100, 5000),
     } for i in range(n)]
 
 
@@ -96,13 +110,15 @@ def gen_patients(n=50):
             "DEATHDATE": dead.isoformat() if dead else "",
             "SSN": f"999-{random.randint(10,99)}-{random.randint(1000,9999)}",
             "DRIVERS": "", "PASSPORT": "", "PREFIX": "", "FIRST": f"Patient{i+1}",
-            "LAST": f"Synthetic{i+1}", "SUFFIX": "", "MAIDEN": "",
+            "MIDDLE": "", "LAST": f"Synthetic{i+1}", "SUFFIX": "", "MAIDEN": "",
             "MARITAL": random.choice(MARITAL), "RACE": random.choice(RACES),
             "ETHNICITY": random.choice(ETHNICITIES), "GENDER": random.choice(GENDERS),
             "BIRTHPLACE": "Boston, MA", "ADDRESS": f"{200+i} Oak St", "CITY": "Boston",
-            "STATE": "MA", "COUNTY": "Suffolk", "ZIP": "02118", "LAT": "42.33", "LON": "-71.07",
+            "STATE": "MA", "COUNTY": "Suffolk", "FIPS": "25025",
+            "ZIP": "02118", "LAT": "42.33", "LON": "-71.07",
             "HEALTHCARE_EXPENSES": round(random.uniform(1000, 50000), 2),
             "HEALTHCARE_COVERAGE": round(random.uniform(0, 40000), 2),
+            "INCOME": random.randint(20000, 150000),
         })
     return rows
 
@@ -136,7 +152,8 @@ def gen_encounters(patients, organizations, providers, payers, per_patient=3):
 def gen_conditions(encounters, rate=0.4):
     return [{
         "START": enc["START"], "STOP": "", "PATIENT": enc["PATIENT"],
-        "ENCOUNTER": enc["Id"], "CODE": (cd := random.choice(CONDITION_CODES))[0],
+        "ENCOUNTER": enc["Id"], "SYSTEM": CONDITION_SYSTEM,
+        "CODE": (cd := random.choice(CONDITION_CODES))[0],
         "DESCRIPTION": cd[1],
     } for enc in encounters if random.random() < rate]
 
@@ -172,7 +189,7 @@ def main(run_id: str, num_patients: int):
     write_csv(patients, f"{out_dir}/patients.csv")
     write_csv(encounters, f"{out_dir}/encounters.csv")
     write_csv(conditions, f"{out_dir}/conditions.csv",
-              fieldnames=["START", "STOP", "PATIENT", "ENCOUNTER", "CODE", "DESCRIPTION"])
+              fieldnames=["START", "STOP", "PATIENT", "ENCOUNTER", "SYSTEM", "CODE", "DESCRIPTION"])
 
     print(f"[simulate_weekly_drop] wrote 6 files to {out_dir} "
           f"({len(patients)} patients, {len(encounters)} encounters, {len(conditions)} conditions)")

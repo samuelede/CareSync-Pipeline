@@ -27,11 +27,15 @@ caresync-pipeline/
 │   └── business_questions.sql
 ├── quarantine/                  # rejected files land here, keyed by run_id
 ├── data/
-│   └── landing/                 # drop zone: generated batches, gitignored (Week 3: same path, fed by SFTP)
+│   ├── landing/                 # drop zone: generated batches, gitignored (Week 3: same path, fed by SFTP)
+│   ├── real_synthea_sample/     # trimmed, committed, referentially-intact real Synthea export
+│   └── weekly_splits/           # output of split_synthea_into_weeks.py, gitignored
 ├── scripts/
 │   ├── setup_google_drive.sh
 │   ├── generate_synthea_data.sh
 │   ├── simulate_weekly_drop.py
+│   ├── explore_synthea_data.py
+│   ├── split_synthea_into_weeks.py
 │   ├── make_dirty_batch.py
 │   ├── run_local_pipeline.sh
 │   ├── send_run_summary.py
@@ -71,6 +75,7 @@ caresync-pipeline/
 | `sql/` | Warehouse DDL, run audit table, business question queries |
 | `quarantine/` | Rejected files, keyed by run id |
 | `data/landing/` | The drop zone (local folder now, SFTP-fed in Week 3, same interface) |
-| `scripts/` | Setup automation, data simulation, dirty-batch demo, connection checks, run helpers |
-| `tests/` | Unit tests for the validation engine and cascade-skip logic |
+| `data/real_synthea_sample/` | Real, trimmed Synthea data used for schema verification and tests |
+| `scripts/` | Setup automation, real-data exploration, weekly batch-splitting, data simulation, dirty-batch demo, connection checks, run helpers |
+| `tests/` | Unit tests for the validation engine, cascade-skip logic, and real-data schema conformance |
 | `docs/` | Architecture, data dictionary, setup guides, ER diagram, this file |
