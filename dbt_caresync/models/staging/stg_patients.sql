@@ -5,6 +5,11 @@
 -- unrelated to clinic/appointment reporting and there's no reason to
 -- carry it further than RAW. FIPS is kept: it's the same granularity as
 -- COUNTY, which is already selected below.
+--
+-- Dedup: patients is a full weekly snapshot, not an incremental delta, so
+-- reloading the same run (or the same week twice) re-adds the same
+-- patient IDs into RAW. QUALIFY keeps only the most recently loaded row
+-- per Id, "latest wins", same as any standard SCD Type 1 dimension.
 select
     "Id"                   as patient_id,
     "BIRTHDATE"             as birthdate,
@@ -23,3 +28,4 @@ select
     _run_id,
     _loaded_at
 from {{ source('raw', 'patients') }}
+qualify row_number() over (partition by "Id" order by _loaded_at desc) = 1
