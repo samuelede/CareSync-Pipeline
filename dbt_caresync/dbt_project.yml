@@ -17,6 +17,8 @@ models:
       +database: "{{ env_var('SNOWFLAKE_DATABASE_STAGING', 'NEXORA_STAGING_WH') }}"
       +schema: staging
     marts:
+      reporting:
+        +materialized: view
       +materialized: table
       +database: "{{ env_var('SNOWFLAKE_DATABASE_PROD', 'NEXORA_PROD_WH') }}"
       +schema: prod
