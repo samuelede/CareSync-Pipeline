@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUN_ID: ci-${{ github.run_number }}
-      # Non-secret configuration, safe to commit directly.
       SNOWFLAKE_ROLE: NEXORA_LOADER
       SNOWFLAKE_WAREHOUSE: NEXORA_WH
       SNOWFLAKE_DATABASE_RAW: NEXORA_RAW_WH
@@ -20,7 +19,6 @@ jobs:
       SNOWFLAKE_PRIVATE_KEY_PATH: ./config/snowflake_rsa_key.p8
       GDRIVE_FORCE_LOCAL: "true"
       EMAIL_PROVIDER: resend
-      # Secrets, reconstructed from GitHub repo secrets below.
       SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
       SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -40,8 +38,14 @@ jobs:
       - name: Reconstruct Snowflake private key from secret
         run: |
           mkdir -p config
-          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY_B64 }}" | base64 -d > config/snowflake_rsa_key.p8
+          # tr strips any stray whitespace/newlines the secret picked up
+          # from copy-pasting a long base64 string into GitHub's secret
+          # box, base64 -d alone fails hard on any non-base64 character.
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY_B64 }}" | tr -d '[:space:]' | base64 -d > config/snowflake_rsa_key.p8
           chmod 600 config/snowflake_rsa_key.p8
+          # Sanity check: a real PEM key has this header. If this grep
+          # fails, the secret itself is wrong/corrupted, not just whitespace.
+          grep -q "BEGIN PRIVATE KEY" config/snowflake_rsa_key.p8
 
       - name: Set up dbt profile
         run: |
