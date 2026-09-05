@@ -8,11 +8,11 @@ venv/
 
 # credentials
 config/gdrive_service_account.json
-*.pem
 config/gdrive_oauth_client_secret.json
+config/gdrive_oauth_token.json
 config/snowflake_rsa_key.p8
-
-data/landing
+config/snowflake_rsa_key_public.pem
+*.pem
 
 # dbt
 dbt_caresync/target/
@@ -23,13 +23,22 @@ dbt_caresync/logs/
 validation/great_expectations/uncommitted/
 
 # data (synthetic, but keep the repo light)
-data/landing/*.csv
+# Trailing-slash directory patterns, not *.csv globs: `*` doesn't cross a
+# `/` in gitignore, so `data/landing/*.csv` never matched the real files,
+# which live one level deeper at data/landing/<run_id>/*.csv.
+data/landing/*/
 !data/landing/.gitkeep
 !data/landing/README.md
-data/landing/*/validation_manifest.json
+data/real_synthea_sample/
 data/audit/
-quarantine/*.csv
+data/weekly_splits/
+quarantine/*/
 !quarantine/.gitkeep
+
+# data/real_synthea_sample/ is NOT ignored: it's a small (316KB),
+# deliberately committed, referentially-intact trimmed copy of a real
+# Synthea export, used by tests and scripts/explore_synthea_data.py, not
+# generated pipeline output.
 
 # airflow
 orchestration/airflow/logs/

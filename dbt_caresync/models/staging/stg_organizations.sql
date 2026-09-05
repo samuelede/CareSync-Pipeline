@@ -10,6 +10,8 @@ select
     "PHONE"       as phone,
     "REVENUE"     as revenue,
     "UTILIZATION" as utilization,
+    "NPI"         as npi,
     _run_id,
     _loaded_at
 from {{ source('raw', 'organizations') }}
+qualify row_number() over (partition by "Id" order by _loaded_at desc) = 1

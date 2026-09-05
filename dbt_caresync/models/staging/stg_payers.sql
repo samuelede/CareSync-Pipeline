@@ -1,6 +1,7 @@
 select
     "Id"                    as payer_id,
     "NAME"                  as payer_name,
+    "OWNERSHIP"             as ownership,
     "STATE_HEADQUARTERED"   as state_headquartered,
     "AMOUNT_COVERED"        as amount_covered,
     "AMOUNT_UNCOVERED"      as amount_uncovered,
@@ -10,3 +11,4 @@ select
     _run_id,
     _loaded_at
 from {{ source('raw', 'payers') }}
+qualify row_number() over (partition by "Id" order by _loaded_at desc) = 1

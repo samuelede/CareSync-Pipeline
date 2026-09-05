@@ -9,33 +9,33 @@ models:
       - name: patient_key
         tests:
           - not_null
-          - relationships: {to: ref('dim_patient'), field: patient_key}
+          - relationships: {to: ref('dim_patients'), field: patient_key}
       - name: provider_key
         tests:
-          - relationships: {to: ref('dim_provider'), field: provider_key}
-      - name: organization_key
+          - relationships: {to: ref('dim_providers'), field: provider_key}
+      - name: clinic_key
         tests:
-          - relationships: {to: ref('dim_organization'), field: organization_key}
+          - relationships: {to: ref('dim_clinics'), field: clinic_key}
       - name: payer_key
         tests:
-          - relationships: {to: ref('dim_payer'), field: payer_key}
+          - relationships: {to: ref('dim_payers'), field: payer_key}
 
-  - name: dim_patient
+  - name: dim_patients
     columns:
       - name: patient_key
         tests: [unique, not_null]
 
-  - name: dim_provider
+  - name: dim_providers
     columns:
       - name: provider_key
         tests: [unique, not_null]
 
-  - name: dim_organization
+  - name: dim_clinics
     columns:
-      - name: organization_key
+      - name: clinic_key
         tests: [unique, not_null]
 
-  - name: dim_payer
+  - name: dim_payers
     columns:
       - name: payer_key
         tests: [unique, not_null]

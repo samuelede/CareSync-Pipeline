@@ -14,7 +14,7 @@ from pre-validation's "is this input file clean?". Checks:
       encounters row count for this run
     - no duplicate natural keys in any dimension
 
-If Snowflake is configured, checks run as SQL against CARESYNC_WH.PROD. If
+If Snowflake is configured, checks run as SQL against NEXORA_PROD_WH.PROD. If
 not, falls back to checking the local dbt-equivalent CSVs under
 data/landing/<run_id>/ so the gate is provable without a live
 warehouse (dry-run mode). This validates the *logic*; the live SQL path
@@ -26,7 +26,7 @@ import os
 
 import pandas as pd
 
-from config.settings import SNOWFLAKE_CONFIG, get_snowflake_connect_kwargs
+from config.settings import SNOWFLAKE_CONFIG, DATABASE_PROD, get_snowflake_connect_kwargs
 from notifications.slack_notify import send_slack_alert
 from notifications.email_notify import send_email_alert
 from scripts.audit_log import write_audit_row
@@ -59,13 +59,13 @@ def _dry_run_checks(run_id: str) -> dict:
     #    (this is exactly the mistake the gate exists to catch)
     # Informational only in dry-run: this inspects the RAW source, which is
     # expected to contain PHI. The real gate (live_checks, below) inspects
-    # information_schema for CARESYNC_WH.PROD; if PHI columns show up there,
+    # information_schema for NEXORA_PROD_WH.PROD; if PHI columns show up there,
     # that's the actual failure this check exists to catch.
     exposed_phi = PHI_COLUMNS & set(patients.columns)
     results["no_phi_columns"] = (
         True,
         f"dry-run informational: RAW patients has {sorted(exposed_phi)}; "
-        f"live check enforces these are absent from CARESYNC_WH.PROD"
+        f"live check enforces these are absent from NEXORA_PROD_WH.PROD"
     )
 
     # 3. row count bounds: fct_appointments (~= encounters) shouldn't have
@@ -83,15 +83,15 @@ def _dry_run_checks(run_id: str) -> dict:
 
 
 def _live_checks() -> dict:
-    """Runs the same four checks as real SQL against CARESYNC_WH.PROD."""
+    """Runs the same four checks as real SQL against NEXORA_PROD_WH.PROD."""
     import snowflake.connector
     conn = snowflake.connector.connect(**get_snowflake_connect_kwargs())
     results = {}
     try:
         cur = conn.cursor()
         cur.execute(f"""
-            SELECT COUNT(*) FROM PROD.FCT_APPOINTMENTS f
-            LEFT JOIN PROD.DIM_PATIENT p ON f.patient_key = p.patient_key
+            SELECT COUNT(*) FROM {DATABASE_PROD}.PROD.FCT_APPOINTMENTS f
+            LEFT JOIN {DATABASE_PROD}.PROD.DIM_PATIENTS p ON f.patient_key = p.patient_key
             WHERE p.patient_key IS NULL
         """)
         orphans = cur.fetchone()[0]
@@ -99,19 +99,19 @@ def _live_checks() -> dict:
 
         cur.execute(f"""
             SELECT COUNT(*) FROM information_schema.columns
-            WHERE table_catalog = CURRENT_DATABASE() AND table_schema = 'PROD'
+            WHERE table_catalog = '{DATABASE_PROD}' AND table_schema = 'PROD'
               AND column_name IN ({",".join(f"'{c}'" for c in PHI_COLUMNS)})
         """)
         phi_hits = cur.fetchone()[0]
         results["no_phi_columns"] = (phi_hits == 0, f"{phi_hits} PHI column(s) found in PROD")
 
-        cur.execute(f"SELECT COUNT(*) FROM PROD.FCT_APPOINTMENTS")
+        cur.execute(f"SELECT COUNT(*) FROM {DATABASE_PROD}.PROD.FCT_APPOINTMENTS")
         fact_count = cur.fetchone()[0]
         results["row_count_bounds"] = (fact_count >= 0, f"{fact_count} row(s) in fct_appointments")
 
         cur.execute(f"""
             SELECT COUNT(*) FROM (
-                SELECT patient_key FROM PROD.DIM_PATIENT
+                SELECT patient_key FROM {DATABASE_PROD}.PROD.DIM_PATIENTS
                 GROUP BY patient_key HAVING COUNT(*) > 1
             )
         """)

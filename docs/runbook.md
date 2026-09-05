@@ -2,7 +2,7 @@
 
 ## A dataset was rejected, what do I do?
 1. Check the Slack/email alert for `run_id` and `dataset`.
-2. Query `CARESYNC_WH.AUDIT.RUN_AUDIT` for that run/dataset row.
+2. Query `NEXORA_RAW_WH.AUDIT.RUN_AUDIT` for that run/dataset row.
    `failed_checks` lists exactly which rule(s) failed.
 3. Inspect the file at `quarantine/<run_id>/<dataset>.csv`.
 4. If it's a genuine third-party data problem, contact the aggregation

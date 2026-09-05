@@ -32,9 +32,8 @@ EVENT_EMOJI = {
 
 
 def format_message(event: str, run_id: str, detail: dict) -> str:
-    lines = [f"{EVENT_EMOJI.get(event, ':bell:')} *CareSync: {event}*", f"Run ID: `{run_id}`"]
-    for k, v in detail.items():
-        lines.append(f"*{k}:* {v}")
+    header = [f"{EVENT_EMOJI.get(event, ':bell:')} *CareSync: {event}*", f"Run ID: `{run_id}`"]
+    lines = header + [f"*{k}:* {v}" for k, v in detail.items()]
     return "\n".join(lines)
 
 

@@ -9,5 +9,5 @@
 | `RUN_SUCCESS` | full run completes, post-validation passes | Slack + email | run_id, per-dataset status, row counts loaded |
 
 Every message carries `run_id` so it can be traced back to
-`CARESYNC_WH.AUDIT.RUN_AUDIT` and, for pre-validation failures, to the
+`NEXORA_RAW_WH.AUDIT.RUN_AUDIT` and, for pre-validation failures, to the
 corresponding file under `quarantine/`.

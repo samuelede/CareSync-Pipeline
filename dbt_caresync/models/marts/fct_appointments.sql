@@ -4,7 +4,7 @@ select
     e.encounter_id,
     e.patient_id      as patient_key,
     e.provider_id     as provider_key,
-    e.organization_id as organization_key,
+    e.organization_id as clinic_key,
     e.payer_id        as payer_key,
     e.start_ts,
     e.stop_ts,
