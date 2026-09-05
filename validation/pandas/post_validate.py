@@ -194,7 +194,12 @@ def _live_checks(run_id: str) -> dict:
 
 
 def main(run_id: str):
-    results = _live_checks(run_id) if _snowflake_configured() else _dry_run_checks(run_id)
+    from config.settings import VALIDATION_ENGINE as _VE
+    if _VE == "great_expectations" and _snowflake_configured():
+        from validation.great_expectations.ge_post_validate import run_ge_post_validation
+        results = run_ge_post_validation(run_id)
+    else:
+        results = _live_checks(run_id) if _snowflake_configured() else _dry_run_checks(run_id)
 
     failed = {k: v[1] for k, v in results.items() if not v[0]}
     passed = len(failed) == 0

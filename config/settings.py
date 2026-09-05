@@ -135,6 +135,13 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 NOTIFY_EMAIL_TO = os.getenv("NOTIFY_EMAIL_TO", "ops-team@nexorahealth.example")
 
 # --- SLA ---
+# --- SFTP (Phase 2 production landing zone, replaces Google Drive) ---
+SFTP_HOST = os.getenv("SFTP_HOST")
+SFTP_PORT = int(os.getenv("SFTP_PORT", 22))
+SFTP_USER = os.getenv("SFTP_USER")
+SFTP_PASSWORD = os.getenv("SFTP_PASSWORD")
+SFTP_KEY_PATH = os.getenv("SFTP_KEY_PATH")
+
 FILE_ARRIVAL_SLA_MINUTES = int(os.getenv("FILE_ARRIVAL_SLA_MINUTES", 60))
 SCHEDULED_DELIVERY_TIME_UTC = os.getenv("SCHEDULED_DELIVERY_TIME_UTC", "06:00")
 
