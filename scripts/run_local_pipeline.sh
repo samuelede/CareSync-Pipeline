@@ -32,10 +32,34 @@ if [ "${SNOWFLAKE_AUTH_METHOD:-password}" = "keypair" ]; then
     DBT_TARGET="dev_keypair"
 fi
 
+# TASK_ERROR: fires only when a step crashes unexpectedly (a Python
+# exception -> non-zero exit under `set -e`), not when pre_validate or
+# post_validate report REJECTED/FAILED on data, those exit 0 by design
+# and already send their own PRE_VALIDATION_FAILED/POST_VALIDATION_FAILED
+# alerts. $CURRENT_STEP at trap time is the step that just failed.
+CURRENT_STEP="unknown step"
+on_error() {
+    python -m scripts.notify_task_error "$RUN_ID" "$CURRENT_STEP" || true
+}
+trap on_error ERR
+
+CURRENT_STEP="scripts.check_connections"
 python -m scripts.check_connections
+
+CURRENT_STEP="sensing.drive_sensor"
 python -m sensing.drive_sensor --run-id "$RUN_ID"
+
+CURRENT_STEP="validation.pandas.pre_validate"
 python -m validation.pandas.pre_validate --run-id "$RUN_ID"
+
+CURRENT_STEP="loaders.snowflake_loader"
 python -m loaders.snowflake_loader --run-id "$RUN_ID"
+
+CURRENT_STEP="dbt run"
 (cd dbt_caresync && dbt run --target "$DBT_TARGET") || echo "[run_local_pipeline] dbt run skipped/failed, configure ~/.dbt/profiles.yml to run for real"
+
+CURRENT_STEP="validation.pandas.post_validate"
 python -m validation.pandas.post_validate --run-id "$RUN_ID"
+
+CURRENT_STEP="scripts.send_run_summary"
 python -m scripts.send_run_summary --run-id "$RUN_ID"
