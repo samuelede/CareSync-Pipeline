@@ -4,9 +4,16 @@ Pre-validation gate. Runs before any file reaches Snowflake RAW.
 Usage:
     python -m validation.pandas.pre_validate --run-id 2026-08-10
 
+Validation engine is selectable via VALIDATION_ENGINE in .env: "pandas"
+(default, Phase 1) or "great_expectations" (Phase 2). Both read the exact
+same validation.pandas.schemas.SCHEMAS definitions, so switching engines
+never changes which rules are enforced, only how they're checked, see
+validation/great_expectations/ge_validate.py's docstring for how the two
+were verified to agree on real data.
+
 For each dataset in config.settings.DATASET_MANIFEST:
     1. Load the downloaded CSV from data/landing/<run_id>/<dataset>.csv
-    2. Run every check via rules_<dataset>.validate()
+    2. Run every check via the selected engine's validate()
     3. If ALL pass -> mark dataset VALID, leave file in place for the loader
     4. If ANY fail  -> move file to quarantine/<run_id>/<dataset>.csv,
        mark dataset REJECTED, write failure detail to the run audit log,
@@ -22,7 +29,7 @@ import shutil
 
 import pandas as pd
 
-from config.settings import DATASET_MANIFEST
+from config.settings import DATASET_MANIFEST, VALIDATION_ENGINE
 from validation.pandas import (
     rules_organizations, rules_providers, rules_payers,
     rules_patients, rules_encounters, rules_conditions,
@@ -31,7 +38,7 @@ from notifications.slack_notify import send_slack_alert
 from notifications.email_notify import send_email_alert
 from scripts.audit_log import write_audit_row
 
-RULES = {
+PANDAS_RULES = {
     "organizations": rules_organizations,
     "providers": rules_providers,
     "payers": rules_payers,
@@ -39,6 +46,17 @@ RULES = {
     "encounters": rules_encounters,
     "conditions": rules_conditions,
 }
+
+
+def run_validation(dataset: str, df) -> tuple:
+    """Dispatches to whichever engine VALIDATION_ENGINE selects. Both
+    branches return the identical (is_valid, results) shape, so nothing
+    downstream of this function needs to know or care which engine ran.
+    """
+    if VALIDATION_ENGINE == "great_expectations":
+        from validation.great_expectations.ge_validate import validate as ge_validate
+        return ge_validate(dataset, df)
+    return PANDAS_RULES[dataset].validate(df)
 
 
 def cascade_skip(status: dict) -> dict:
@@ -73,7 +91,7 @@ def process_file(dataset: str, run_id: str) -> tuple:
     except Exception as exc:
         return "REJECTED", 0, {"parseability": [str(exc)]}
 
-    is_valid, results = RULES[dataset].validate(df)
+    is_valid, results = run_validation(dataset, df)
     row_count = len(df)
 
     if is_valid:
@@ -120,7 +138,6 @@ def main(run_id: str):
 
     status = cascade_skip(status)
 
-    # log cascade-skipped datasets separately so the audit trail shows *why*
     for dataset, final_status in status.items():
         if final_status == "SKIPPED" and dataset not in failures:
             write_audit_row(
@@ -135,7 +152,7 @@ def main(run_id: str):
     with open(manifest_path, "w") as f:
         json.dump(status, f, indent=2)
 
-    print(f"[pre_validate] run {run_id}: {status}")
+    print(f"[pre_validate] run {run_id} (engine: {VALIDATION_ENGINE}): {status}")
     return status
 
 

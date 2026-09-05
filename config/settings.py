@@ -9,6 +9,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# --- Validation engine ---
+# "pandas" (default, Phase 1) or "great_expectations" (Phase 2). Both
+# read the exact same validation.pandas.schemas.SCHEMAS definitions, so
+# switching this never changes which rules are enforced, only how they're
+# checked. See docs/architecture.md for the two-stage comparison.
+VALIDATION_ENGINE = os.getenv("VALIDATION_ENGINE", "pandas")
+
 # --- Google Drive ---
 # Two supported auth methods, either can be left unset. Service account is
 # preferred for automation, but some Google Cloud projects have service
