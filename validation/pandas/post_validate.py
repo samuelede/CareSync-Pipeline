@@ -5,20 +5,24 @@ before the run is treated as trusted and a success notification goes out.
 Usage:
     python -m validation.pandas.post_validate --run-id 2026-08-10
 
-Asks "does the reporting layer satisfy business requirements?" This is distinct
-from pre-validation's "is this input file clean?". Checks:
-
+Checks:
     - no orphan foreign keys in fct_appointments against each dimension
     - no PHI columns (ssn, first, last, document numbers) in any PROD table
-    - fct_appointments row count is within bounds of the validated
-      encounters row count for this run
+    - fct_appointments row count is within bounds
     - no duplicate natural keys in any dimension
+    - reconciliation: fct_appointments row count matches what was
+      actually loaded to RAW this run
+    - metric_validity: costs non-negative, payer_coverage never exceeds
+      total_claim_cost, encounter duration non-negative
+    - categorical_conformance: encounter_class values in PROD match the
+      allowed set in schemas.py
+    - freshness: fct_appointments actually has rows tagged with this
+      run's run_id
 
 If Snowflake is configured, checks run as SQL against NEXORA_PROD_WH.PROD. If
 not, falls back to checking the local dbt-equivalent CSVs under
 data/landing/<run_id>/ so the gate is provable without a live
-warehouse (dry-run mode). This validates the *logic*; the live SQL path
-validates the *warehouse*.
+warehouse (dry-run mode).
 """
 import argparse
 import json
@@ -26,7 +30,7 @@ import os
 
 import pandas as pd
 
-from config.settings import SNOWFLAKE_CONFIG, DATABASE_PROD, get_snowflake_connect_kwargs
+from config.settings import SNOWFLAKE_CONFIG, DATABASE_RAW, DATABASE_PROD, get_snowflake_connect_kwargs
 from notifications.slack_notify import send_slack_alert
 from notifications.email_notify import send_email_alert
 from scripts.audit_log import write_audit_row
@@ -39,28 +43,18 @@ def _snowflake_configured() -> bool:
 
 
 def _dry_run_checks(run_id: str) -> dict:
-    """Approximates the four post-validation checks using the same run's
-    validated source CSVs, standing in for the PROD mart tables locally."""
     src = f"data/landing/{run_id}"
     results = {}
 
     patients = pd.read_csv(f"{src}/patients.csv", dtype=str) if os.path.exists(f"{src}/patients.csv") else pd.DataFrame()
     encounters = pd.read_csv(f"{src}/encounters.csv", dtype=str) if os.path.exists(f"{src}/encounters.csv") else pd.DataFrame()
 
-    # 1. no orphan keys: every encounter.PATIENT should exist in patients.Id
     if not encounters.empty and not patients.empty:
         orphans = encounters[~encounters["PATIENT"].isin(patients["Id"])]
         results["no_orphan_keys"] = (len(orphans) == 0, f"{len(orphans)} orphaned encounter(s)")
     else:
         results["no_orphan_keys"] = (True, "no encounters loaded this run, vacuously true")
 
-    # 2. no PHI columns. Staging model intent, checked here against the
-    #    columns that WOULD be exposed if stg_patients.sql selected `*`
-    #    (this is exactly the mistake the gate exists to catch)
-    # Informational only in dry-run: this inspects the RAW source, which is
-    # expected to contain PHI. The real gate (live_checks, below) inspects
-    # information_schema for NEXORA_PROD_WH.PROD; if PHI columns show up there,
-    # that's the actual failure this check exists to catch.
     exposed_phi = PHI_COLUMNS & set(patients.columns)
     results["no_phi_columns"] = (
         True,
@@ -68,22 +62,56 @@ def _dry_run_checks(run_id: str) -> dict:
         f"live check enforces these are absent from NEXORA_PROD_WH.PROD"
     )
 
-    # 3. row count bounds: fct_appointments (~= encounters) shouldn't have
-    #    gained or lost rows vs the validated source
     results["row_count_bounds"] = (True, f"{len(encounters)} encounter row(s), matches source 1:1 in dry-run")
 
-    # 4. no duplicate natural keys
     if not patients.empty:
         dupes = patients[patients.duplicated(subset=["Id"], keep=False)]
-        results["no_duplicate_natural_keys"] = (len(dupes) == 0, f"{len(dupes)} duplicate patient Id row(s)")
+        results["no_duplicate_natural_keys"] = (len(dupes) == 0, f"{dupes['Id'].nunique() if len(dupes) else 0} duplicate patient Id value(s)")
     else:
         results["no_duplicate_natural_keys"] = (True, "no patients loaded this run")
+
+    results["reconciliation"] = (
+        True, f"dry-run informational: {len(encounters)} encounters validated this run"
+    )
+
+    if not encounters.empty:
+        costs_ok = True
+        cost_errors = []
+        for col in ["BASE_ENCOUNTER_COST", "TOTAL_CLAIM_COST", "PAYER_COVERAGE"]:
+            if col in encounters.columns:
+                numeric = pd.to_numeric(encounters[col], errors="coerce")
+                negative = numeric[numeric < 0]
+                if len(negative) > 0:
+                    costs_ok = False
+                    cost_errors.append(f"{len(negative)} negative {col} value(s)")
+        if "TOTAL_CLAIM_COST" in encounters.columns and "PAYER_COVERAGE" in encounters.columns:
+            claim = pd.to_numeric(encounters["TOTAL_CLAIM_COST"], errors="coerce")
+            coverage = pd.to_numeric(encounters["PAYER_COVERAGE"], errors="coerce")
+            over_covered = encounters[(coverage.notna()) & (claim.notna()) & (coverage > claim)]
+            if len(over_covered) > 0:
+                costs_ok = False
+                cost_errors.append(f"{len(over_covered)} row(s) where payer_coverage exceeds total_claim_cost")
+        results["metric_validity"] = (costs_ok, "; ".join(cost_errors) if cost_errors else "all metrics valid")
+    else:
+        results["metric_validity"] = (True, "no encounters loaded this run")
+
+    if not encounters.empty and "ENCOUNTERCLASS" in encounters.columns:
+        from validation.pandas.schemas import SCHEMAS
+        allowed = SCHEMAS["encounters"]["allowed_values"]["ENCOUNTERCLASS"]
+        actual = set(encounters["ENCOUNTERCLASS"].dropna().unique())
+        bad = actual - allowed
+        results["categorical_conformance"] = (
+            len(bad) == 0, f"disallowed encounter_class value(s): {sorted(bad)}" if bad else "conforms"
+        )
+    else:
+        results["categorical_conformance"] = (True, "no encounters loaded this run")
+
+    results["freshness"] = (True, "dry-run informational: freshness only checked in live mode")
 
     return results
 
 
-def _live_checks() -> dict:
-    """Runs the same four checks as real SQL against NEXORA_PROD_WH.PROD."""
+def _live_checks(run_id: str) -> dict:
     import snowflake.connector
     conn = snowflake.connector.connect(**get_snowflake_connect_kwargs())
     results = {}
@@ -117,13 +145,47 @@ def _live_checks() -> dict:
         """)
         dupes = cur.fetchone()[0]
         results["no_duplicate_natural_keys"] = (dupes == 0, f"{dupes} duplicate natural key(s)")
+
+        cur.execute(f"""
+            SELECT COUNT(*) FROM {DATABASE_RAW}.RAW.ENCOUNTERS WHERE _run_id = %s
+        """, (run_id,))
+        raw_count = cur.fetchone()[0]
+        results["reconciliation"] = (
+            fact_count == raw_count or raw_count == 0,
+            f"{fact_count} row(s) in fct_appointments vs {raw_count} loaded to RAW this run"
+        )
+
+        cur.execute(f"""
+            SELECT COUNT(*) FROM {DATABASE_PROD}.PROD.FCT_APPOINTMENTS
+            WHERE base_encounter_cost < 0 OR total_claim_cost < 0 OR payer_coverage < 0
+               OR payer_coverage > total_claim_cost
+               OR (stop_ts IS NOT NULL AND stop_ts < start_ts)
+        """)
+        bad_metrics = cur.fetchone()[0]
+        results["metric_validity"] = (bad_metrics == 0, f"{bad_metrics} row(s) with invalid metrics")
+
+        cur.execute(f"""
+            SELECT COUNT(*) FROM {DATABASE_PROD}.PROD.FCT_APPOINTMENTS
+            WHERE encounter_class NOT IN (
+                'ambulatory','emergency','inpatient','wellness','urgentcare',
+                'outpatient','home','virtual','hospice','snf'
+            )
+        """)
+        bad_categories = cur.fetchone()[0]
+        results["categorical_conformance"] = (bad_categories == 0, f"{bad_categories} disallowed encounter_class value(s)")
+
+        cur.execute(f"""
+            SELECT COUNT(*) FROM {DATABASE_PROD}.PROD.FCT_APPOINTMENTS WHERE _run_id = %s
+        """, (run_id,))
+        fresh_count = cur.fetchone()[0]
+        results["freshness"] = (fresh_count > 0, f"{fresh_count} row(s) tagged with this run_id in fct_appointments")
     finally:
         conn.close()
     return results
 
 
 def main(run_id: str):
-    results = _live_checks() if _snowflake_configured() else _dry_run_checks(run_id)
+    results = _live_checks(run_id) if _snowflake_configured() else _dry_run_checks(run_id)
 
     failed = {k: v[1] for k, v in results.items() if not v[0]}
     passed = len(failed) == 0
