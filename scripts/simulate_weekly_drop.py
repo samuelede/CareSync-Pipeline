@@ -1,8 +1,8 @@
 """
 Generates a locally-simulated weekly drop of the six CareSync CSVs,
 structurally matching real Synthea exports, and writes them into
-data/landing/<run_id>/, standing in for the third-party agent's
-Google Drive delivery so the rest of the pipeline can be built and tested
+data/landing/<run_id>/, standing in for the third-party agent's Google
+Drive delivery so the rest of the pipeline can be built and tested
 without a live Drive connection or a Synthea/Java toolchain.
 
 This is the "simulate weekly drops" half of that todo item; the other
@@ -124,10 +124,18 @@ def gen_patients(n=50):
 
 
 def gen_encounters(patients, organizations, providers, payers, per_patient=3):
-    # Left as a nested loop: two levels of iteration plus four
-    # interdependent locals (start, stop, org, provider) computed once and
-    # reused. A comprehension would need a nested walrus chain that's
-    # harder to read than the loop, not easier.
+    # Left as a loop rather than a comprehension: many interdependent
+    # locals per row (start/stop, org/provider, and now cost figures that
+    # must be derived from each other in order, not drawn independently).
+    #
+    # Costs are deliberately NOT independent random draws. total_claim_cost
+    # must be >= base_encounter_cost (the claim covers at least the base
+    # visit), and payer_coverage must be <= total_claim_cost (a payer can
+    # never cover more than the total claim). Generating these three
+    # independently (the original bug here) let payer_coverage exceed
+    # total_claim_cost by chance, which validation.pandas.post_validate's
+    # metric_validity check correctly flags as invalid, exactly the kind
+    # of business-rule violation that check exists to catch.
     rows = []
     for patient in patients:
         for _ in range(random.randint(0, per_patient)):
@@ -135,15 +143,20 @@ def gen_encounters(patients, organizations, providers, payers, per_patient=3):
             stop = start + timedelta(hours=random.randint(1, 4))
             org = random.choice(organizations)
             provider = random.choice([p for p in providers if p["ORGANIZATION"] == org["Id"]] or providers)
+
+            base_cost = round(random.uniform(80, 400), 2)
+            total_claim_cost = round(random.uniform(base_cost, base_cost + 1600), 2)
+            payer_coverage = round(random.uniform(0, total_claim_cost), 2)
+
             rows.append({
                 "Id": new_id(), "START": start.isoformat(), "STOP": stop.isoformat(),
                 "PATIENT": patient["Id"], "ORGANIZATION": org["Id"], "PROVIDER": provider["Id"],
                 "PAYER": random.choice(payers)["Id"],
                 "ENCOUNTERCLASS": random.choice(ENCOUNTER_CLASSES),
                 "CODE": str(random.randint(100000, 999999)), "DESCRIPTION": "General visit",
-                "BASE_ENCOUNTER_COST": round(random.uniform(80, 400), 2),
-                "TOTAL_CLAIM_COST": round(random.uniform(100, 2000), 2),
-                "PAYER_COVERAGE": round(random.uniform(0, 1500), 2),
+                "BASE_ENCOUNTER_COST": base_cost,
+                "TOTAL_CLAIM_COST": total_claim_cost,
+                "PAYER_COVERAGE": payer_coverage,
                 "REASONCODE": "", "REASONDESCRIPTION": "",
             })
     return rows
