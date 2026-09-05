@@ -38,14 +38,25 @@ jobs:
       - name: Reconstruct Snowflake private key from secret
         run: |
           mkdir -p config
-          # tr strips any stray whitespace/newlines the secret picked up
-          # from copy-pasting a long base64 string into GitHub's secret
-          # box, base64 -d alone fails hard on any non-base64 character.
-          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY_B64 }}" | tr -d '[:space:]' | base64 -d > config/snowflake_rsa_key.p8
+
+          RAW_LEN=$(echo -n "${{ secrets.SNOWFLAKE_PRIVATE_KEY_B64 }}" | wc -c)
+          echo "Secret length as received by Actions: $RAW_LEN characters"
+
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY_B64 }}" | tr -d '[:space:]' > /tmp/key_clean_b64.txt
+          CLEAN_LEN=$(wc -c < /tmp/key_clean_b64.txt)
+          echo "Length after stripping whitespace: $CLEAN_LEN characters"
+
+          # Report any character outside the standard base64 alphabet
+          # without ever printing the secret itself, safe to log.
+          INVALID_CHARS=$(tr -d 'A-Za-z0-9+/=' < /tmp/key_clean_b64.txt | fold -w1 | sort -u | tr -d '\n')
+          if [ -n "$INVALID_CHARS" ]; then
+            echo "Found non-base64 character(s) in the secret (shown individually, not in context): '$INVALID_CHARS'"
+            exit 1
+          fi
+
+          base64 -d /tmp/key_clean_b64.txt > config/snowflake_rsa_key.p8
           chmod 600 config/snowflake_rsa_key.p8
-          # Sanity check: a real PEM key has this header. If this grep
-          # fails, the secret itself is wrong/corrupted, not just whitespace.
-          grep -q "BEGIN PRIVATE KEY" config/snowflake_rsa_key.p8
+          grep -q "BEGIN PRIVATE KEY" config/snowflake_rsa_key.p8 && echo "PEM header check: OK"
 
       - name: Set up dbt profile
         run: |
