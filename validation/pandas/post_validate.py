@@ -1,5 +1,6 @@
 """
 Post-validation gate. Runs after dbt has built the PROD reporting layer,
+import sys
 before the run is treated as trusted and a success notification goes out.
 
 Usage:
@@ -29,6 +30,7 @@ data/landing/<run_id>/ so the gate is provable without a live
 warehouse (dry-run mode).
 """
 import argparse
+import sys
 import json
 import os
 
@@ -219,4 +221,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-id", required=True)
     args = parser.parse_args()
-    main(args.run_id)
+    passed = main(args.run_id)
+    sys.exit(0 if passed else 2)
