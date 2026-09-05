@@ -1,6 +1,6 @@
 # CareSync Architecture
 
-![architecture diagram placeholder](./architecture-placeholder.png)
+![architecture diagram](./architecture-diagram.png)
 
 ## Flow
 
