@@ -67,7 +67,7 @@ Full file-by-file tree: [`docs/project_structure.md`](docs/project_structure.md)
 ### 1. Clone and install (Phase 1)
 
 ```bash
-git clone https://github.com/<your-username>/caresync-pipeline.git
+git clone https://github.com/samuelede/caresync-pipeline.git
 cd caresync-pipeline
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
