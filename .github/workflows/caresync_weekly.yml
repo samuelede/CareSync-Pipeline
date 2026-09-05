@@ -46,11 +46,9 @@ jobs:
           CLEAN_LEN=$(wc -c < /tmp/key_clean_b64.txt)
           echo "Length after stripping whitespace: $CLEAN_LEN characters"
 
-          # Report any character outside the standard base64 alphabet
-          # without ever printing the secret itself, safe to log.
           INVALID_CHARS=$(tr -d 'A-Za-z0-9+/=' < /tmp/key_clean_b64.txt | fold -w1 | sort -u | tr -d '\n')
           if [ -n "$INVALID_CHARS" ]; then
-            echo "Found non-base64 character(s) in the secret (shown individually, not in context): '$INVALID_CHARS'"
+            echo "Found non-base64 character(s) in the secret: '$INVALID_CHARS'"
             exit 1
           fi
 
@@ -65,6 +63,9 @@ jobs:
 
       - name: Generate this run's weekly batch
         run: python -m scripts.simulate_weekly_drop --run-id "$RUN_ID" --patients 50
+
+      - name: Ensure pipeline script is executable
+        run: chmod +x scripts/run_local_pipeline.sh
 
       - name: Run the full pipeline
         run: ./scripts/run_local_pipeline.sh "$RUN_ID"
