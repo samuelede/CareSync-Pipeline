@@ -1,28 +1,32 @@
-name: CareSync Weekly Pipeline (Phase 1 - testing stack)
+name: CareSync Weekly Pipeline (Phase 1)
 
 on:
   schedule:
-    - cron: "0 7 * * 1"   # 07:00 UTC Monday, 1h after the 06:00 scheduled delivery
-  workflow_dispatch:
-    inputs:
-      run_id:
-        description: "Run ID (defaults to today's date)"
-        required: false
+    - cron: "0 7 * * 1"   # 07:00 UTC Monday
+  workflow_dispatch:       # lets you trigger manually from the Actions tab
 
 jobs:
   caresync-pipeline:
     runs-on: ubuntu-latest
     env:
-      RUN_ID: ${{ github.event.inputs.run_id || github.run_id }}
-      GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+      RUN_ID: ci-${{ github.run_number }}
+      # Non-secret configuration, safe to commit directly.
+      SNOWFLAKE_ROLE: NEXORA_LOADER
+      SNOWFLAKE_WAREHOUSE: NEXORA_WH
+      SNOWFLAKE_DATABASE_RAW: NEXORA_RAW_WH
+      SNOWFLAKE_DATABASE_STAGING: NEXORA_STAGING_WH
+      SNOWFLAKE_DATABASE_PROD: NEXORA_PROD_WH
+      SNOWFLAKE_AUTH_METHOD: keypair
+      SNOWFLAKE_PRIVATE_KEY_PATH: ./config/snowflake_rsa_key.p8
+      GDRIVE_FORCE_LOCAL: "true"
+      EMAIL_PROVIDER: resend
+      # Secrets, reconstructed from GitHub repo secrets below.
       SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
       SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
-      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
       SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
-      SMTP_HOST: ${{ secrets.SMTP_HOST }}
-      SMTP_USER: ${{ secrets.SMTP_USER }}
-      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      NOTIFY_EMAIL_TO: ${{ secrets.NOTIFY_EMAIL_TO }}
     steps:
       - uses: actions/checkout@v4
 
@@ -33,28 +37,19 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # Step order mirrors the pipeline stages in the project spec.
-      # All steps run as `python -m` from the repo root so the package
-      # imports (config.settings, notifications.*, scripts.audit_log)
-      # resolve the same way locally and in CI.
-      - name: Sense files (Google Drive, 1h SLA)
-        run: python -m sensing.drive_sensor --run-id "$RUN_ID"
-
-      - name: Pre-validate (pandas)
-        run: python -m validation.pandas.pre_validate --run-id "$RUN_ID"
-
-      - name: Load validated files to Snowflake RAW
-        run: python -m loaders.snowflake_loader --run-id "$RUN_ID"
-
-      - name: dbt run (staging + marts)
-        working-directory: dbt_caresync
+      - name: Reconstruct Snowflake private key from secret
         run: |
-          pip install dbt-snowflake
-          dbt run
+          mkdir -p config
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY_B64 }}" | base64 -d > config/snowflake_rsa_key.p8
+          chmod 600 config/snowflake_rsa_key.p8
 
-      - name: Post-validate reporting layer
-        run: python -m validation.pandas.post_validate --run-id "$RUN_ID"
+      - name: Set up dbt profile
+        run: |
+          mkdir -p ~/.dbt
+          cp dbt_caresync/profiles_example.yml ~/.dbt/profiles.yml
 
-      - name: Send run summary notification
-        if: always()
-        run: python -m scripts.send_run_summary --run-id "$RUN_ID"
+      - name: Generate this run's weekly batch
+        run: python -m scripts.simulate_weekly_drop --run-id "$RUN_ID" --patients 50
+
+      - name: Run the full pipeline
+        run: ./scripts/run_local_pipeline.sh "$RUN_ID"
