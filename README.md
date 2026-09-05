@@ -22,7 +22,7 @@ breaks. CareSync closes all four gaps.
 
 ## Architecture
 
-![architecture diagram placeholder](./docs/architecture-placeholder.png)
+![architecture diagram](./docs/architecture-diagram.png)
 
 See [`docs/architecture.md`](docs/architecture.md) for the full flow and the
 dataset dependency map that drives cascade-skip.
