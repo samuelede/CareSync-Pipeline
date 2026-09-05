@@ -10,8 +10,12 @@ Checks:
     - no PHI columns (ssn, first, last, document numbers) in any PROD table
     - fct_appointments row count is within bounds
     - no duplicate natural keys in any dimension
-    - reconciliation: fct_appointments row count matches what was
-      actually loaded to RAW this run
+    - reconciliation: this run's rows in fct_appointments match what was
+      actually loaded to RAW this run (both sides scoped to the same
+      run_id, comparing the whole table against one run's RAW load would
+      always mismatch once more than one run's data has accumulated,
+      since encounters/conditions are intentionally not deduplicated
+      across runs)
     - metric_validity: costs non-negative, payer_coverage never exceeds
       total_claim_cost, encounter duration non-negative
     - categorical_conformance: encounter_class values in PROD match the
@@ -134,8 +138,8 @@ def _live_checks(run_id: str) -> dict:
         results["no_phi_columns"] = (phi_hits == 0, f"{phi_hits} PHI column(s) found in PROD")
 
         cur.execute(f"SELECT COUNT(*) FROM {DATABASE_PROD}.PROD.FCT_APPOINTMENTS")
-        fact_count = cur.fetchone()[0]
-        results["row_count_bounds"] = (fact_count >= 0, f"{fact_count} row(s) in fct_appointments")
+        total_fact_count = cur.fetchone()[0]
+        results["row_count_bounds"] = (total_fact_count >= 0, f"{total_fact_count} row(s) in fct_appointments (all-time)")
 
         cur.execute(f"""
             SELECT COUNT(*) FROM (
@@ -146,13 +150,22 @@ def _live_checks(run_id: str) -> dict:
         dupes = cur.fetchone()[0]
         results["no_duplicate_natural_keys"] = (dupes == 0, f"{dupes} duplicate natural key(s)")
 
+        # reconciliation and freshness both need "this run's rows in
+        # fct_appointments", computed once and reused, and compared
+        # against RAW on the SAME run_id scope, not the whole table.
+        cur.execute(f"""
+            SELECT COUNT(*) FROM {DATABASE_PROD}.PROD.FCT_APPOINTMENTS WHERE _run_id = %s
+        """, (run_id,))
+        fresh_count = cur.fetchone()[0]
+        results["freshness"] = (fresh_count > 0, f"{fresh_count} row(s) tagged with this run_id in fct_appointments")
+
         cur.execute(f"""
             SELECT COUNT(*) FROM {DATABASE_RAW}.RAW.ENCOUNTERS WHERE _run_id = %s
         """, (run_id,))
         raw_count = cur.fetchone()[0]
         results["reconciliation"] = (
-            fact_count == raw_count or raw_count == 0,
-            f"{fact_count} row(s) in fct_appointments vs {raw_count} loaded to RAW this run"
+            fresh_count == raw_count,
+            f"{fresh_count} row(s) tagged with this run in fct_appointments vs {raw_count} loaded to RAW this run"
         )
 
         cur.execute(f"""
@@ -173,12 +186,6 @@ def _live_checks(run_id: str) -> dict:
         """)
         bad_categories = cur.fetchone()[0]
         results["categorical_conformance"] = (bad_categories == 0, f"{bad_categories} disallowed encounter_class value(s)")
-
-        cur.execute(f"""
-            SELECT COUNT(*) FROM {DATABASE_PROD}.PROD.FCT_APPOINTMENTS WHERE _run_id = %s
-        """, (run_id,))
-        fresh_count = cur.fetchone()[0]
-        results["freshness"] = (fresh_count > 0, f"{fresh_count} row(s) tagged with this run_id in fct_appointments")
     finally:
         conn.close()
     return results
