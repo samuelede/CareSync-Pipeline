@@ -26,7 +26,7 @@ import yaml
 
 from config.settings import (
     SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_PASSWORD, SFTP_KEY_PATH,
-    FILE_ARRIVAL_SLA_MINUTES,
+    FILE_ARRIVAL_SLA_MINUTES, SFTP_REMOTE_DIR,
 )
 from notifications.slack_notify import send_slack_alert
 from notifications.email_notify import send_email_alert
@@ -55,7 +55,7 @@ def _connect_sftp():
     return paramiko.SFTPClient.from_transport(transport), transport
 
 
-def sense_live_sftp(sftp, dataset: str, pattern: str, run_id: str, remote_dir: str = "."):
+def sense_live_sftp(sftp, dataset: str, pattern: str, run_id: str, remote_dir: str = SFTP_REMOTE_DIR):
     """Lists the SFTP directory for a matching file and downloads it.
     Returns (arrived: bool, arrived_at: datetime | None)."""
     entries = sftp.listdir_attr(remote_dir)
