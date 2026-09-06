@@ -27,7 +27,7 @@ def _get_context():
     global _context
     if _context is None:
         _context = gx.get_context(mode="ephemeral")
-        context.progress_bars = False
+        context.variables.progress_bars = {"globally": False}
     return _context
 
 
