@@ -1,5 +1,5 @@
 # CareSync: Quality-Gated Weekly Data Platform
-### Nexora Health — Project Presentation
+### Nexora Health - Project Presentation
 
 ---
 
