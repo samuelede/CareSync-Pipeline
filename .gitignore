@@ -43,3 +43,7 @@ quarantine/*/
 # airflow
 orchestration/airflow/logs/
 orchestration/airflow/airflow.db
+
+# Local Airflow testing scaffolding (machine-specific paths, not portable)
+docker-compose-airflow.yaml
+.env.airflow
