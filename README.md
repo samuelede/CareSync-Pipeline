@@ -309,11 +309,18 @@ fires even if an upstream task failed.
 - [`docs/snowflake_setup.md`](docs/snowflake_setup.md): full first-time Snowflake account and CLI setup
 - [`docs/entity_relationship.md`](docs/entity_relationship.md): star schema ER diagram, grain, cardinality
 - [`docs/project_structure.md`](docs/project_structure.md): full file-by-file project tree
+- [`reporting/README.md`](reporting/README.md): Power BI dashboard, 5 pages including live pipeline health/SLA monitoring
+- **[Project presentation](#)**: full CareSync walkthrough, architecture, proof points, and lessons learned
 
 ## Business questions
 
 SQL answers live in [`sql/business_questions.sql`](sql/business_questions.sql),
 run against `NEXORA_PROD_WH.PROD` and `NEXORA_RAW_WH.AUDIT.RUN_AUDIT`.
+
+These are also visualized live in the
+[Power BI dashboard](reporting/README.md), which adds a dedicated
+Pipeline Health page built on `RUN_AUDIT`, the operational side of the
+same reporting layer.
 
 ## Contributing
 

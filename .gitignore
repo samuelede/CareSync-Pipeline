@@ -13,15 +13,12 @@ config/gdrive_oauth_token.json
 config/snowflake_rsa_key.p8
 config/snowflake_rsa_key_public.pem
 *.pem
-
 # dbt
 dbt_caresync/target/
 dbt_caresync/dbt_packages/
 dbt_caresync/logs/
-
 # great expectations
 validation/great_expectations/uncommitted/
-
 # data (synthetic, but keep the repo light)
 # Trailing-slash directory patterns, not *.csv globs: `*` doesn't cross a
 # `/` in gitignore, so `data/landing/*.csv` never matched the real files,
@@ -34,16 +31,14 @@ data/audit/
 data/weekly_splits/
 quarantine/*/
 !quarantine/.gitkeep
-
 # data/real_synthea_sample/ is NOT ignored: it's a small (316KB),
 # deliberately committed, referentially-intact trimmed copy of a real
 # Synthea export, used by tests and scripts/explore_synthea_data.py, not
 # generated pipeline output.
-
 # airflow
 orchestration/airflow/logs/
 orchestration/airflow/airflow.db
-
 # Local Airflow testing scaffolding (machine-specific paths, not portable)
 docker-compose-airflow.yaml
 .env.airflow
+docs/presentations/
