@@ -310,7 +310,7 @@ fires even if an upstream task failed.
 - [`docs/entity_relationship.md`](docs/entity_relationship.md): star schema ER diagram, grain, cardinality
 - [`docs/project_structure.md`](docs/project_structure.md): full file-by-file project tree
 - [`reporting/README.md`](reporting/README.md): Power BI dashboard, 5 pages including live pipeline health/SLA monitoring
-- **[Project presentation](#)**: full CareSync walkthrough, architecture, proof points, and lessons learned
+- **[Project presentation](https://www.loom.com/share/a6b6cab3340c47f28970573b1db33c42)**: full CareSync walkthrough, architecture, proof points, and lessons learned
 
 ## Business questions
 
